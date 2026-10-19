@@ -1,2 +1,4 @@
 # Локальное распознавание речи (Whisper через CTranslate2)
 faster-whisper>=1.0
+# PyAV 19 убрал параметр metadata_errors, который передаёт faster-whisper 1.2 → TypeError при декодировании
+av>=11,<19
