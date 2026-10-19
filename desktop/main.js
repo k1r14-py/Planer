@@ -180,6 +180,8 @@ async function startServer() {
         PLANER_PRELOAD_WHISPER: "1",
         PYTHONUNBUFFERED: "1",
         PYTHONNOUSERSITE: "1",
+        // Windows: иначе вывод по-русски (логи, перезапуск после обновления) падает на кодировке cp1252
+        PYTHONUTF8: "1",
       },
       stdio: ["ignore", log, log],
       windowsHide: true,

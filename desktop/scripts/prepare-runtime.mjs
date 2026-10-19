@@ -14,7 +14,9 @@ const OUT = path.join(DESKTOP, "runtime");
 const PY_VERSION = process.env.PLANER_PYTHON ?? "3.12";
 const isWin = process.platform === "win32";
 
-const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: "inherit", ...opts });
+// PYTHONUTF8: консоль Windows по умолчанию в cp1252 — без него падает любой вывод кириллицы
+const run = (cmd, args, opts = {}) =>
+  execFileSync(cmd, args, { stdio: "inherit", env: { ...process.env, PYTHONUTF8: "1" }, ...opts });
 const step = (text) => console.log(`\n▸ ${text}`);
 
 if (!fs.existsSync(path.join(ROOT, "frontend", "dist", "index.html"))) {
