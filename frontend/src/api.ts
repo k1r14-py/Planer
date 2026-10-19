@@ -98,6 +98,22 @@ export interface UpdateInfo {
   reason: string;
 }
 
+/** Обновление оболочки приложения (desktop/shell-update.js). */
+export interface ShellCheck {
+  available: boolean;
+  supported: boolean;
+  version?: string;
+  size?: number;
+  automatic?: boolean;
+  page?: string;
+}
+
+export interface ShellJob {
+  state: "idle" | "downloading" | "installing" | "manual" | "error";
+  message: string;
+  progress: number | null;
+}
+
 export interface UpdateStatus {
   state: "idle" | "downloading" | "installing" | "restarting" | "error";
   message: string;
@@ -143,6 +159,77 @@ export interface AIProviderPreset {
   login?: boolean;
 }
 
+export interface WeeklyFacts {
+  start: string;
+  end: string;
+  planned: number;
+  planned_done: number;
+  done: number;
+  unplanned_done: number;
+  moved: number;
+  focus_min: number;
+  projects: { name: string; done: number; open: number; focus_min: number }[];
+  stuck: { id: number; title: string; day: string; carried: number; deadline: string | null; overdue: boolean }[];
+  estimates: {
+    tasks: number;
+    estimate_min: number;
+    actual_min: number;
+    ratio: number | null;
+    misses: { id: number; title: string; estimate_min: number; actual_min: number }[];
+  };
+}
+
+export interface WeeklyReview {
+  facts: WeeklyFacts;
+  review: {
+    summary: string;
+    wins: string[];
+    stuck: { id: number; advice: string }[];
+    estimates: string;
+    suggestions: string[];
+  };
+}
+
+export interface PlanCandidate {
+  id: number;
+  title: string;
+  day: string;
+  source: "today" | "past" | "future";
+  estimate_min: number | null;
+  deadline: string | null;
+  project: string | null;
+  open_subtasks: number;
+  carried: number;
+}
+
+export interface PlanProposal {
+  candidates: PlanCandidate[];
+  plan: { id: number; estimate_min: number | null; why: string }[];
+  later: { id: number; estimate_min: number | null; why: string }[];
+  new_tasks: { title: string; estimate_min: number | null }[];
+  note: string;
+}
+
+export interface PlanApply {
+  day: string;
+  order: number[];
+  estimates: Record<number, number>;
+  later: number[];
+  new_tasks: { title: string; estimate_min: number | null }[];
+}
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  text: string;
+}
+
+export interface AskReply {
+  answer: string;
+  found: number;
+  filters: Record<string, unknown>;
+  tasks: { id: number; day: string; title: string; status: Status; parent_id: number | null }[];
+}
+
 export interface ChatGPTStatus {
   state: "idle" | "waiting" | "done" | "error";
   message: string;
@@ -175,7 +262,12 @@ export interface OllamaStatus {
   ram_gb: number | null;
   free_disk_gb: number;
   recommended: { model: string | null; size: string | null; ok: boolean; note: string };
-  job: { state: "idle" | "starting" | "downloading" | "installing" | "pulling" | "done" | "error"; message: string; progress: number | null; model: string | null };
+  job: {
+    state: "idle" | "starting" | "downloading" | "installing" | "pulling" | "done" | "error";
+    message: string;
+    progress: number | null;
+    model: string | null;
+  };
 }
 
 export interface ReviewProposal {
@@ -247,8 +339,7 @@ export const api = {
       "GET",
       `/api/dashboard?start=${start}&end=${end}${projectId != null ? `&project_id=${projectId}` : ""}`,
     ),
-  history: (start: string, end: string) =>
-    request<HistoryRow[]>("GET", `/api/history?start=${start}&end=${end}`),
+  history: (start: string, end: string) => request<HistoryRow[]>("GET", `/api/history?start=${start}&end=${end}`),
 
   addTask: (day: string, title: string, parent_id: number | null, estimate_min: number | null) =>
     request<Task>("POST", "/api/tasks", { day, title, parent_id, estimate_min }),
@@ -260,12 +351,20 @@ export const api = {
     patch: Partial<
       Pick<
         Task,
-        | "title" | "notes" | "status" | "estimate_min" | "actual_sec" | "position" | "planned"
-        | "project_id" | "deadline" | "tags" | "day"
+        | "title"
+        | "notes"
+        | "status"
+        | "estimate_min"
+        | "actual_sec"
+        | "position"
+        | "planned"
+        | "project_id"
+        | "deadline"
+        | "tags"
+        | "day"
       >
     >,
-  ) =>
-    request<Day>("PATCH", `/api/tasks/${id}`, patch),
+  ) => request<Day>("PATCH", `/api/tasks/${id}`, patch),
   deleteTask: (id: number) => request<Day>("DELETE", `/api/tasks/${id}`),
   timerStart: (id: number) => request<Day>("POST", `/api/tasks/${id}/timer/start`),
   timerStop: (id: number) => request<Day>("POST", `/api/tasks/${id}/timer/stop`),
@@ -281,6 +380,12 @@ export const api = {
   aiReset: () => request<AISettings>("DELETE", "/api/ai/settings"),
   aiTest: (d: AISettingsDraft) => request<{ ok: boolean; model: string }>("POST", "/api/ai/test", d),
   aiModels: (d: AISettingsDraft) => request<string[]>("POST", "/api/ai/models", d),
+  aiWeekly: (start: string, end: string) => request<WeeklyReview>("POST", "/api/ai/weekly", { start, end }),
+  aiPlanDay: (day: string, hours: number, wishes: string) =>
+    request<PlanProposal>("POST", "/api/ai/plan-day", { day, hours, wishes }),
+  aiPlanApply: (p: PlanApply) => request<Day>("POST", "/api/ai/plan-day/apply", p),
+  aiAsk: (question: string, today: string, history: ChatTurn[]) =>
+    request<AskReply>("POST", "/api/ai/ask", { question, today, history }),
   chatgptLogin: () => request<ChatGPTStatus>("POST", "/api/ai/chatgpt/login"),
   chatgptStatus: () => request<ChatGPTStatus>("GET", "/api/ai/chatgpt/status"),
   chatgptLogout: () => request<ChatGPTStatus>("POST", "/api/ai/chatgpt/logout"),

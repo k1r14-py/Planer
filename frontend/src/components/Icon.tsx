@@ -3,6 +3,7 @@ const PATHS: Record<string, string> = {
   grip: "M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01",
   "chevron-right": "M9 18l6-6-6-6",
   "chevron-down": "M6 9l6 6 6-6",
+  "chevron-up": "M6 15l6-6 6 6",
   "chevron-left": "M15 18l-6-6 6-6",
   check: "M20 6L9 17l-5-5",
   hourglass: "M6 2h12M6 22h12M7 2v4a5 5 0 0 0 10 0V2M7 22v-4a5 5 0 0 1 10 0v4",
@@ -40,6 +41,8 @@ const PATHS: Record<string, string> = {
   sparkles: "M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8zM5 2l.6 1.4L7 4l-1.4.6L5 6l-.6-1.4L3 4l1.4-.6z",
   steps: "M4 6h4v4H4zM10 8h10M4 14h4v4H4zM10 16h10",
   review: "M4 4h16v12H8l-4 4zM8 9h8M8 12h5",
+  chat: "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12zM8.5 12h.01M12 12h.01M15.5 12h.01",
+  send: "M4 12l16-8-6 16-2.5-6.5z",
   link: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
 };
 

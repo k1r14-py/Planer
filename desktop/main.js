@@ -23,6 +23,7 @@ const fsp = require("node:fs/promises");
 const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
+const shellUpdate = require("./shell-update");
 
 const isMac = process.platform === "darwin";
 const isWin = process.platform === "win32";
@@ -377,6 +378,21 @@ if (!app.requestSingleInstanceLock()) {
     if (isMac) app.dock?.setIcon(path.join(__dirname, "build", "icon.png"));
     setupPermissions();
     ipcMain.handle("planer:get-hotkey", () => hotkeyLabel(loadSettings().hotkey));
+    ipcMain.handle("planer:shell-check", () => shellUpdate.check());
+    ipcMain.handle("planer:shell-status", () => shellUpdate.status());
+    ipcMain.handle("planer:shell-install", () =>
+      shellUpdate.install({
+        prepareQuit: async () => {
+          quitting = true;
+          if (server && !server.stopped) {
+            server.stopped = true;
+            await stopServer();
+          }
+        },
+        quit: () => app.quit(),
+        notify: (job) => win?.webContents.send("planer:shell-status", job),
+      }),
+    );
     createWindow();
     createTray();
     registerHotkey();

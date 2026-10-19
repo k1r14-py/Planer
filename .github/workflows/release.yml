@@ -1,6 +1,7 @@
 # Публикует релиз, когда меняется файл VERSION:
 #   • planer-vX.Y.Z.zip (+ .sha256) — код с собранным интерфейсом, его ставит кнопка «Обновить» внутри Planer;
-#   • приложения: Planer-X.Y.Z-mac-arm64.dmg, Planer-X.Y.Z-mac-x64.dmg, Planer-X.Y.Z-win-x64.exe.
+#   • приложения: Planer-X.Y.Z-mac-arm64.dmg, Planer-X.Y.Z-mac-x64.dmg, Planer-X.Y.Z-win-x64.exe;
+#   • planer-shell-id.txt — отпечаток оболочки: по нему приложение понимает, что пора обновиться целиком.
 name: Release
 
 on:
@@ -59,12 +60,16 @@ jobs:
           cp -r frontend/dist out/Planer/frontend/dist
           (cd out && zip -qr "../planer-v$V.zip" Planer)
           sha256sum "planer-v$V.zip" > "planer-v$V.zip.sha256"
+      - name: Отпечаток оболочки
+        # приложение сравнивает его со своим и, если они разные, ставит новую версию целиком
+        run: node desktop/scripts/shell-id.mjs --print | tee planer-shell-id.txt
       - uses: actions/upload-artifact@v4
         with:
           name: code
           path: |
             planer-v*.zip
             planer-v*.zip.sha256
+            planer-shell-id.txt
 
   desktop:
     needs: version
@@ -102,6 +107,7 @@ jobs:
           npm ci
           npm pkg set version="${{ needs.version.outputs.version }}"
           node scripts/prepare-runtime.mjs
+          node scripts/shell-id.mjs
       - name: Сборка приложения
         shell: bash
         env:
@@ -110,7 +116,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: app-${{ matrix.name }}
-          path: ${{ matrix.files }}
+          path: |
+            ${{ matrix.files }}
+            desktop/shell-id.txt
           if-no-files-found: error
 
   publish:
@@ -131,6 +139,12 @@ jobs:
           # описание — раздел «## V» из CHANGELOG.md + как установить
           awk -v v="## $V" '$0 == v {f=1; next} /^## /{f=0} f' CHANGELOG.md > notes.md
           cat docs/INSTALL.md >> notes.md
-          find out -type f \( -name '*.zip' -o -name '*.sha256' -o -name '*.dmg' -o -name '*.exe' \) > files.txt
+          # отпечаток оболочки должен совпасть на всех системах — иначе приложения будут вечно «обновляться»
+          for f in $(find out -name shell-id.txt); do
+            if ! diff -q "$f" out/code/planer-shell-id.txt >/dev/null; then
+              echo "::error::Отпечаток оболочки в $f не совпадает с planer-shell-id.txt"; exit 1
+            fi
+          done
+          find out -type f \( -name '*.zip' -o -name '*.sha256' -o -name '*.dmg' -o -name '*.exe' -o -name 'planer-shell-id.txt' \) > files.txt
           cat files.txt
           gh release create "v$V" $(cat files.txt) --title "Planer $V" --notes-file notes.md --target "$GITHUB_SHA"

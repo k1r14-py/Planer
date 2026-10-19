@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Day, VoiceStatus } from "./api";
+import type { Day, ShellCheck, ShellJob, VoiceStatus } from "./api";
 import { api } from "./api";
 import { DayView } from "./components/DayView";
 import { DictationDialog } from "./components/DictationDialog";
 import { DashboardView } from "./components/dashboard/DashboardView";
 import { Icon } from "./components/Icon";
 import { AISettingsDialog } from "./components/AISettingsDialog";
+import { ChatDialog } from "./components/ChatDialog";
 import { LinkSettingsDialog } from "./components/LinkSettingsDialog";
 import { PlanFactView } from "./components/PlanFactView";
 import { TasksView } from "./components/TasksView";
@@ -24,6 +25,12 @@ declare global {
       onDictate: (cb: () => void) => () => void;
       onHotkey: (cb: (label: string) => void) => () => void;
       getHotkey: () => Promise<string>;
+      shellUpdate?: {
+        check: () => Promise<ShellCheck>;
+        install: () => Promise<ShellJob>;
+        status: () => Promise<ShellJob>;
+        onStatus: (cb: (job: ShellJob) => void) => () => void;
+      };
     };
   }
 }
@@ -43,6 +50,7 @@ export default function App() {
   const today = isoDay(new Date());
   const [day, setDay] = useState(today);
   const [tab, setTab] = useState<Tab>("day");
+  const [chatOpen, setChatOpen] = useState(false);
   const [data, setData] = useState<Day | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -174,6 +182,9 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <button className="icon-btn" onClick={() => setChatOpen(true)} title="Спросить планер (ИИ)" aria-label="Спросить планер">
+          <Icon name="chat" />
+        </button>
         <button className="icon-btn" onClick={openLinks} title="Ссылки по ключевым словам" aria-label="Ссылки по ключевым словам">
           <Icon name="link" />
         </button>
@@ -267,6 +278,7 @@ export default function App() {
 
       {aiOpen && <AISettingsDialog onClose={() => setAiOpen(false)} />}
       {linksOpen && <LinkSettingsDialog onClose={() => setLinksOpen(false)} />}
+      {chatOpen && <ChatDialog today={today} onClose={() => setChatOpen(false)} onOpenDay={openDay} />}
     </div>
     </LinksProvider>
     </AIStateProvider>

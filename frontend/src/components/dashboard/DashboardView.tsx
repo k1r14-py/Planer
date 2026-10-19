@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import type { Dashboard } from "../../api";
 import { api } from "../../api";
+import { useAI } from "../../ai";
 import { useProjects } from "../../projects";
 import { formatMinutes, isoDay, shiftDay } from "../../utils";
 import { Icon } from "../Icon";
+import { WeeklyDialog } from "../WeeklyDialog";
 import { DailyChart, DailyTable, DoneBars, Heatmap, WeekdayChart } from "./charts";
 
 type Period = "7" | "30" | "90" | "month" | "prev-month";
@@ -53,6 +55,8 @@ export function DashboardView({ today, onOpenDay }: { today: string; onOpenDay: 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [table, setTable] = useState(false);
+  const [review, setReview] = useState<[string, string] | null>(null);
+  const ai = useAI();
 
   useEffect(() => {
     try {
@@ -102,7 +106,16 @@ export function DashboardView({ today, onOpenDay }: { today: string; onOpenDay: 
             </option>
           ))}
         </select>
+        <span className="spacer" />
+        <button
+          className="btn sm"
+          onClick={() => (ai.ready ? setReview(range(state.period, today)) : ai.openSettings())}
+          title="ИИ объяснит итоги периода: что получилось, что буксует, где расходятся оценки"
+        >
+          <Icon name="sparkles" /> Обзор с ИИ
+        </button>
       </div>
+      {review && <WeeklyDialog start={review[0]} end={review[1]} onClose={() => setReview(null)} onOpenDay={onOpenDay} />}
 
       {error && <div className="error">{error}</div>}
 

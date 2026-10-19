@@ -23,6 +23,7 @@ from . import speech, stats, updater
 from .ai import chatgpt_plan as ai_chatgpt
 from .ai import client as ai_client
 from .ai import features as ai_features
+from .ai import insights as ai_insights
 from .ai import ollama as ai_ollama
 from .db import PROJECT_COLORS, init_db, tx
 from .dictation import parse_dictation, parse_line
@@ -249,7 +250,7 @@ def insert_task(
     return cur.lastrowid
 
 
-def carry_task(conn, task_id: int, from_day: str, to_day: str, parent_id: int | None = None) -> None:
+def carry_task(conn, task_id: int, from_day: str, to_day: str, parent_id: int | None = None) -> int:
     """Копирует задачу с открытыми подзадачами на другой день; оригинал помечается «перенесено»."""
     src = task_row(conn, task_id)
     tags = [r["tag"] for r in conn.execute("SELECT tag FROM task_tags WHERE task_id = ?", (task_id,))]
@@ -262,6 +263,7 @@ def carry_task(conn, task_id: int, from_day: str, to_day: str, parent_id: int | 
     ).fetchall():
         carry_task(conn, child["id"], from_day, to_day, new_id)
     set_status(conn, task_id, "moved")
+    return new_id
 
 
 def subtree_ids(conn, task_id: int) -> list[int]:
@@ -734,6 +736,41 @@ class AIParseIn(BaseModel):
     day: str
 
 
+class AIWeeklyIn(BaseModel):
+    start: str
+    end: str
+
+
+class AIPlanDayIn(BaseModel):
+    day: str
+    hours: float = Field(default=6, gt=0, le=16)
+    wishes: str = Field(default="", max_length=4000)
+
+
+class PlanNewTask(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    estimate_min: int | None = Field(default=None, gt=0, le=24 * 60)
+
+
+class AIPlanApply(BaseModel):
+    day: str
+    order: list[int] = []
+    estimates: dict[int, int] = {}
+    later: list[int] = []
+    new_tasks: list[PlanNewTask] = []
+
+
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str = Field(max_length=4000)
+
+
+class AIAskIn(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    today: str
+    history: list[ChatTurn] = []
+
+
 class AIReviewIn(BaseModel):
     day: str
     text: str = Field(min_length=1, max_length=8000)
@@ -966,6 +1003,92 @@ def delete_link(rule_id: int):
     with tx() as conn:
         conn.execute("DELETE FROM link_rules WHERE id = ?", (rule_id,))
         return {"ok": True}
+
+
+@app.post("/api/ai/weekly")
+def ai_weekly(body: AIWeeklyIn):
+    start, end = check_day(body.start), check_day(body.end)
+    if start > end or (date.fromisoformat(end) - date.fromisoformat(start)).days > 92:
+        raise HTTPException(400, "Период — от 1 до 93 дней")
+    with tx() as conn:
+        facts = ai_insights.week_facts(conn, start, end)
+    if not facts["done"] and not facts["planned"] and not facts["stuck"]:
+        raise HTTPException(400, "За этот период в планере нет задач — обозревать нечего.")
+    return {"facts": facts, "review": _ai_call(ai_features.weekly, facts)}
+
+
+@app.post("/api/ai/plan-day")
+def ai_plan_day(body: AIPlanDayIn):
+    day = check_day(body.day)
+    with tx() as conn:
+        candidates = ai_insights.plan_candidates(conn, day)
+    if not candidates and not body.wishes.strip():
+        raise HTTPException(400, "Нет задач для плана — добавьте задачи на день или напишите пожелания.")
+    proposal = _ai_call(ai_features.plan_day, date.fromisoformat(day), body.hours, body.wishes, candidates)
+    return {"candidates": candidates, **proposal}
+
+
+@app.post("/api/ai/plan-day/apply")
+def ai_plan_apply(body: AIPlanApply):
+    """Применяет план утра: подтягивает задачи в день, расставляет порядок и оценки, откладывает лишнее."""
+    day = check_day(body.day)
+    tomorrow = (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+    with tx() as conn:
+        final: list[int] = []
+        for tid in body.order:
+            row = task_row(conn, tid)
+            if row["parent_id"] is not None or row["status"] != "todo":
+                continue
+            if row["day"] < day:
+                # хвост прошлого дня — переносим, как кнопкой «перенести»: в истории остаётся отметка
+                new_id = carry_task(conn, tid, row["day"], day)
+                body.estimates.setdefault(new_id, body.estimates.get(tid))
+                tid = new_id
+            elif row["day"] > day:
+                move_to_day(conn, tid, day)
+            final.append(tid)
+        for t in body.new_tasks:
+            final.append(insert_task(conn, day, t.title, estimate_min=t.estimate_min))
+        for i, tid in enumerate(final):
+            conn.execute("UPDATE tasks SET position = ? WHERE id = ?", (i + 1, tid))
+            est = body.estimates.get(tid)
+            if est and 0 < est <= 24 * 60:
+                conn.execute("UPDATE tasks SET estimate_min = ? WHERE id = ? AND estimate_min IS NULL", (est, tid))
+        # остальные задачи дня — после запланированных, в прежнем порядке
+        rest = conn.execute(
+            f"SELECT id FROM tasks WHERE day = ? AND parent_id IS NULL AND id NOT IN ({','.join('?' * len(final)) or 'NULL'}) "
+            "ORDER BY position, id",
+            (day, *final),
+        ).fetchall()
+        for i, r in enumerate(rest):
+            conn.execute("UPDATE tasks SET position = ? WHERE id = ?", (len(final) + i + 1, r["id"]))
+        for tid in body.later:
+            row = task_row(conn, tid)
+            if row["day"] == day and row["parent_id"] is None and row["status"] == "todo" and tid not in final:
+                move_to_day(conn, tid, tomorrow)
+        return load_day(conn, day)
+
+
+@app.post("/api/ai/ask")
+def ai_ask(body: AIAskIn):
+    today = date.fromisoformat(check_day(body.today))
+    history = [t.model_dump() for t in body.history]
+    with tx() as conn:
+        projects = [r["name"] for r in conn.execute("SELECT name FROM projects")]
+        tags = [r["tag"] for r in conn.execute("SELECT DISTINCT tag FROM task_tags")]
+    filters = _ai_call(ai_features.ask_filters, body.question, history, today, projects, tags)
+    with tx() as conn:
+        data = ai_insights.query_tasks(conn, filters)
+    reply = _ai_call(ai_features.ask_answer, body.question, history, today, filters, data)
+    by_id = {t["id"]: t for t in data["tasks"]}
+    return {
+        "answer": reply["answer"],
+        "filters": filters,
+        "found": data["summary"]["found"],
+        "tasks": [
+            {k: by_id[i][k] for k in ("id", "day", "title", "status", "parent_id")} for i in reply["task_ids"]
+        ],
+    }
 
 
 # ---------- служебное ----------

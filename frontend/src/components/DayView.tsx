@@ -6,6 +6,7 @@ import { ProjectChip, useProjects } from "../projects";
 import { childrenMap, deadlineInfo, shortDate } from "../utils";
 import { Icon } from "./Icon";
 import { BreakdownDialog } from "./BreakdownDialog";
+import { PlanDayDialog } from "./PlanDayDialog";
 import { SummaryCard } from "./SummaryCard";
 import { TaskList, type TaskCtx } from "./TaskItem";
 
@@ -26,6 +27,7 @@ export function DayView({
 }) {
   const [value, setValue] = useState("");
   const [breakdown, setBreakdown] = useState<Task | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
   const ai = useAI();
   const ctx: TaskCtx = {
     children: childrenMap(data.tasks),
@@ -66,10 +68,19 @@ export function DayView({
             <span className="state-pill">
               <Icon name="edit" /> Составление плана
             </span>
-            <span className="muted small">когда план готов — зафиксируйте, чтобы сравнивать план и факт</span>
-            <button className="btn sm" onClick={() => run(api.lock(data.day))} disabled={!data.tasks.length}>
-              <Icon name="lock" /> Зафиксировать план
-            </button>
+            <span className="muted small">зафиксируйте, когда план готов</span>
+            <span className="plan-actions">
+              <button
+                className="btn ghost sm"
+                onClick={() => (ai.ready ? setPlanOpen(true) : ai.openSettings())}
+                title="ИИ предложит порядок дня с учётом сроков, хвостов и ваших часов"
+              >
+                <Icon name="target" /> Спланировать с ИИ
+              </button>
+              <button className="btn sm" onClick={() => run(api.lock(data.day))} disabled={!data.tasks.length}>
+                <Icon name="lock" /> Зафиксировать план
+              </button>
+            </span>
           </>
         )}
       </div>
@@ -109,6 +120,9 @@ export function DayView({
         </div>
       )}
 
+      {planOpen && (
+        <PlanDayDialog day={data.day} onClose={() => setPlanOpen(false)} onApplied={(d) => run(Promise.resolve(d))} />
+      )}
       {breakdown && <BreakdownDialog task={breakdown} onClose={() => setBreakdown(null)} onDone={run} />}
 
       {open > 0 && (

@@ -46,18 +46,12 @@ export function TaskLinks({ matched }: { matched: LinkRule[] }) {
           e.stopPropagation();
           setOpen(!open);
         }}
-        title={
-          matched.length === 1
-            ? matched[0].label || host(matched[0].url)
-            : `Ссылок: ${matched.length}`
-        }
+        title={matched.length === 1 ? matched[0].label || host(matched[0].url) : `Ссылок: ${matched.length}`}
         aria-label="Ссылки к задаче"
         aria-expanded={open}
       >
         <Icon name="link" size={14} />
-        {matched.length > 1 && (
-          <span className="link-count">{matched.length}</span>
-        )}
+        {matched.length > 1 && <span className="link-count">{matched.length}</span>}
       </button>
       {open && (
         <div className="link-popover" role="dialog">
@@ -65,8 +59,8 @@ export function TaskLinks({ matched }: { matched: LinkRule[] }) {
             confirmId === r.id ? (
               <div key={r.id} className="link-confirm">
                 <span>
-                  Удалить ссылку «{r.label || host(r.url)}»? Она пропадёт у всех
-                  задач со словами {r.keywords.join(" + ")}.
+                  Удалить ссылку «{r.label || host(r.url)}»? Она пропадёт у всех задач со словами{" "}
+                  {r.keywords.join(" + ")}.
                 </span>
                 <span className="field-row">
                   <button
@@ -79,30 +73,19 @@ export function TaskLinks({ matched }: { matched: LinkRule[] }) {
                   >
                     Удалить
                   </button>
-                  <button
-                    className="btn ghost sm"
-                    onClick={() => setConfirmId(null)}
-                  >
+                  <button className="btn ghost sm" onClick={() => setConfirmId(null)}>
                     Отмена
                   </button>
                 </span>
               </div>
             ) : (
               <div key={r.id} className="link-row">
-                <a
-                  className="link-item"
-                  href={r.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={() => setOpen(false)}
-                >
+                <a className="link-item" href={r.url} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
                   <span className="link-title">
                     <Icon name="link" size={13} /> {r.label || host(r.url)}
                   </span>
                   <span className="link-url">{r.url}</span>
-                  <span className="link-why">
-                    по словам: {r.keywords.join(" + ")}
-                  </span>
+                  <span className="link-why">по словам: {r.keywords.join(" + ")}</span>
                 </a>
                 <button
                   className="icon-btn sm danger-hover"

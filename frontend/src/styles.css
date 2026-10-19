@@ -2971,3 +2971,296 @@ i.heat-cell.lvl-5 {
   border-radius: 10px;
   background: var(--danger-soft);
 }
+
+.plan-state .plan-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.plan-state .plan-actions .btn {
+  margin-left: 0;
+}
+
+.link-like {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.link-like:hover {
+  text-decoration: underline;
+}
+
+/* ---------- план утра ---------- */
+
+.hours-input {
+  width: 90px;
+}
+
+.plan-proposal {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.plan-note {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+}
+
+.plan-total {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-total.over {
+  color: var(--danger);
+}
+
+.plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.plan-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-top: 1px solid var(--border);
+}
+
+.plan-list li:first-child {
+  border-top: 0;
+}
+
+.plan-list li.off .plan-title {
+  color: var(--text-3);
+  text-decoration: line-through;
+}
+
+.plan-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.plan-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.plan-est {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.plan-move {
+  display: flex;
+}
+
+/* ---------- обзор периода ---------- */
+
+.weekly {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.weekly-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.weekly-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.weekly-facts strong {
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.weekly-facts span {
+  color: var(--text-2);
+  font-size: 0.85em;
+}
+
+.weekly-summary {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.weekly section p {
+  margin: 6px 0 0;
+}
+
+.weekly-list {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.weekly-advice {
+  margin-top: 2px;
+  color: var(--text-2);
+}
+
+@media (max-width: 640px) {
+  .weekly-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---------- вопросы к планеру ---------- */
+
+.chat-dialog {
+  display: flex;
+  flex-direction: column;
+  max-height: min(760px, calc(100vh - 48px));
+}
+
+.chat-dialog .dialog-head .btn {
+  margin-left: auto;
+}
+
+.chat-list {
+  flex: 1;
+  min-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 2px;
+}
+
+.chat-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-empty p {
+  margin: 0;
+}
+
+.chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.suggestion {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9em;
+  text-align: left;
+}
+
+.suggestion:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 85%;
+}
+
+.chat-msg.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.chat-bubble {
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.chat-msg.user .chat-bubble {
+  background: var(--accent);
+  color: #fff;
+}
+
+.chat-msg.error-msg .chat-bubble {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.chat-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-task {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.9em;
+  text-align: left;
+}
+
+.chat-task:hover {
+  border-color: var(--accent);
+}
+
+.chat-input {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat-input textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 140px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.chat-input .btn {
+  height: 44px;
+}

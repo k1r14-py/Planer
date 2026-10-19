@@ -22,6 +22,8 @@
     "files": [
       "main.js",
       "preload.js",
+      "shell-update.js",
+      "shell-id.txt",
       "splash.html",
       "build/icon.png",
       "build/tray*.png"

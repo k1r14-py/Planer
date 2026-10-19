@@ -86,15 +86,8 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
   const probeHits = probe.trim() ? matchLinks(rules, probe) : [];
 
   return (
-    <div
-      className="overlay"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <div
-        className="dialog wide"
-        role="dialog"
-        aria-label="Ссылки по ключевым словам"
-      >
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="dialog wide" role="dialog" aria-label="Ссылки по ключевым словам">
         <header className="dialog-head">
           <h2>
             <Icon name="link" /> Ссылки по ключевым словам
@@ -105,12 +98,9 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
         </header>
 
         <p className="muted dialog-intro">
-          Задайте слова и ссылку — у задачи, где встречаются{" "}
-          <strong>все</strong> эти слова, появится значок{" "}
-          <Icon name="link" size={13} /> со ссылкой. Например, «нок + лонгрид» →
-          задача в Jira, «нок + скринкаст» → другая. Учитываются название,
-          проект и теги задачи; окончания не важны («лонгрид» найдёт
-          «лонгрида»).
+          Задайте слова и ссылку — у задачи, где встречаются <strong>все</strong> эти слова, появится значок{" "}
+          <Icon name="link" size={13} /> со ссылкой. Например, «нок + лонгрид» → задача в Jira, «нок + скринкаст» →
+          другая. Учитываются название, проект и теги задачи; окончания не важны («лонгрид» найдёт «лонгрида»).
         </p>
 
         <label className="form-field probe">
@@ -132,10 +122,7 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
         {rules.length > 0 && (
           <ul className="rule-list">
             {rules.map((r) => (
-              <li
-                key={r.id}
-                className={probeHits.some((h) => h.id === r.id) ? "hit" : ""}
-              >
+              <li key={r.id} className={probeHits.some((h) => h.id === r.id) ? "hit" : ""}>
                 <span className="rule-words">
                   {r.keywords.map((k, i) => (
                     <span key={k}>
@@ -146,39 +133,23 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
                 </span>
                 <span className="rule-target">
                   {r.label && <strong>{r.label}</strong>}
-                  <a
-                    href={r.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="small"
-                  >
+                  <a href={r.url} target="_blank" rel="noreferrer" className="small">
                     {r.url}
                   </a>
                 </span>
                 {confirmId === r.id ? (
                   <span className="rule-actions confirm">
                     <span className="small">Удалить?</span>
-                    <button
-                      className="btn sm danger"
-                      onClick={() => remove(r.id)}
-                    >
+                    <button className="btn sm danger" onClick={() => remove(r.id)}>
                       Да
                     </button>
-                    <button
-                      className="btn ghost sm"
-                      onClick={() => setConfirmId(null)}
-                    >
+                    <button className="btn ghost sm" onClick={() => setConfirmId(null)}>
                       Отмена
                     </button>
                   </span>
                 ) : (
                   <span className="rule-actions">
-                    <button
-                      className="icon-btn sm"
-                      onClick={() => edit(r)}
-                      title="Изменить"
-                      aria-label="Изменить"
-                    >
+                    <button className="icon-btn sm" onClick={() => edit(r)} title="Изменить" aria-label="Изменить">
                       <Icon name="edit" />
                     </button>
                     <button
@@ -199,15 +170,11 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
         {formOpen ? (
           <div className="provider-form rule-form">
             <label className="form-field">
-              <span>
-                Ключевые слова — через запятую, должны встретиться все
-              </span>
+              <span>Ключевые слова — через запятую, должны встретиться все</span>
               <input
                 autoFocus
                 value={draft.keywords}
-                onChange={(e) =>
-                  setDraft({ ...draft, keywords: e.target.value })
-                }
+                onChange={(e) => setDraft({ ...draft, keywords: e.target.value })}
                 placeholder="нок, лонгрид"
               />
               {words.length > 0 && (
@@ -239,11 +206,7 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
               />
             </label>
             <div className="field-row">
-              <button
-                className="btn primary"
-                onClick={save}
-                disabled={saving || !words.length || !draft.url.trim()}
-              >
+              <button className="btn primary" onClick={save} disabled={saving || !words.length || !draft.url.trim()}>
                 {draft.id ? "Сохранить" : "Добавить ссылку"}
               </button>
               <button
@@ -259,10 +222,7 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
               {draft.id && (
                 <>
                   <span className="spacer" />
-                  <button
-                    className="btn ghost danger-text"
-                    onClick={() => remove(draft.id!)}
-                  >
+                  <button className="btn ghost danger-text" onClick={() => remove(draft.id!)}>
                     <Icon name="trash" /> Удалить
                   </button>
                 </>
