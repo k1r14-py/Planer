@@ -397,7 +397,7 @@ def timer_stop(task_id: int):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "app": "planer"}
 
 
 # ---------- голос ----------

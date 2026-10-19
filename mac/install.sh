@@ -67,7 +67,7 @@ say "Собираю интерфейс"
 (cd frontend && npm install --no-audit --no-fund --loglevel=error && npm run build >/dev/null)
 
 # ---------- останавливаем старый сервер, чтобы подхватился новый код ----------
-pkill -f "uvicorn planer.app:app --host 127.0.0.1 --port $PORT" 2>/dev/null || true
+pkill -f "uvicorn planer.app:app --host 127.0.0.1" 2>/dev/null || true
 
 # ---------- Planer.app ----------
 say "Создаю $APP"
@@ -114,7 +114,7 @@ cat <<EOF
   Приложение: $APP
   • Запуск — двойной клик (или Spotlight: ⌘Пробел → «Planer»).
   • Чтобы держать в Dock — перетащите Planer.app из открывшегося окна Finder в Dock.
-  • Адрес: http://127.0.0.1:$PORT   · Логи: ~/Library/Logs/Planer.log
+  • Порт: $PORT (если занят другой программой — выберется свободный) · Логи: ~/Library/Logs/Planer.log
   • Остановить сервер: $REPO/mac/stop.sh
   • Обновить после git pull: снова ./mac/install.sh
 
