@@ -1290,3 +1290,490 @@ kbd {
     gap: 2px;
   }
 }
+
+/* ---------- проекты, теги, сроки ---------- */
+
+.project-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px 1px 6px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--pc) 14%, transparent);
+  color: color-mix(in srgb, var(--pc) 80%, var(--text));
+  font-size: 0.74em;
+  font-weight: 550;
+  white-space: nowrap;
+}
+
+.project-chip i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pc);
+}
+
+.project-chip.clickable,
+.task-row .tag,
+.task-row .deadline {
+  cursor: pointer;
+}
+
+.tag {
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 0.76em;
+  white-space: nowrap;
+}
+
+button.tag {
+  border: 1px dashed var(--border);
+}
+
+button.tag:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 0.74em;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.deadline .icon {
+  width: 11px;
+  height: 11px;
+}
+
+.deadline.soon {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.deadline.overdue {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.icon-btn.sm {
+  width: 26px;
+  height: 26px;
+}
+
+/* редактор свойств задачи */
+
+.task-editor {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
+  margin: 2px 6px 8px 56px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.task-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.task-editor label > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78em;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.task-editor label.wide {
+  grid-column: 1 / -1;
+}
+
+.task-editor input,
+.task-editor select,
+.filters select,
+.filters input[type="date"] {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9em;
+  outline: 0;
+}
+
+.task-editor input:focus,
+.task-editor select:focus,
+.filters select:focus {
+  border-color: var(--accent);
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tag-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.editor-close {
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* поле ввода и подсказка */
+
+.composer-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.composer-hint {
+  padding-left: 14px;
+}
+
+.composer-hint code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--surface-2);
+}
+
+/* блок «Сроки» */
+
+.deadlines ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.deadlines li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+
+.deadlines li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.dl-title {
+  flex: 1;
+  min-width: 140px;
+}
+
+.dl-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* ---------- вкладка «Задачи» ---------- */
+
+.tasks-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-3);
+}
+
+.search-box:focus-within {
+  border-color: var(--accent);
+}
+
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-row select {
+  width: auto;
+  flex: 1 1 140px;
+}
+
+.range {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 260px;
+}
+
+.center {
+  text-align: center;
+}
+
+.found-day-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  font-weight: 650;
+  font-size: 0.95em;
+}
+
+.found-day-title:hover {
+  color: var(--accent);
+}
+
+.found-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.found-list.nested {
+  margin-left: 22px;
+}
+
+.found-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.found-title {
+  flex: 1;
+  min-width: 160px;
+  overflow-wrap: anywhere;
+}
+
+.found-row.done .found-title {
+  color: var(--text-2);
+}
+
+.found-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 0.85em;
+}
+
+/* ---------- диктовка: подсказка и редактируемый список ---------- */
+
+.dictation-help dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 6px 0 0;
+  font-size: 0.88em;
+}
+
+.dictation-help dl > div {
+  display: contents;
+}
+
+.dictation-help dt {
+  font-weight: 600;
+}
+
+.dictation-help dd {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.dictation-text summary {
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+
+.draft-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.draft-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.draft-row:hover {
+  background: var(--surface-2);
+}
+
+.draft-row.depth-1 {
+  padding-left: 22px;
+  color: var(--text-2);
+}
+
+.draft-row > .icon,
+.draft-row > .check {
+  margin-top: 7px;
+}
+
+.draft-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.draft-title {
+  width: 100%;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: 0;
+}
+
+.draft-title:hover,
+.draft-title:focus {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.draft-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 6px;
+}
+
+.draft-chips:empty {
+  display: none;
+}
+
+.draft-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px 1px 7px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 0.76em;
+}
+
+.draft-chip .icon {
+  width: 11px;
+  height: 11px;
+}
+
+.draft-chip.deadline {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.draft-chip.project {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.draft-chip button {
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.draft-chip button:hover {
+  opacity: 1;
+}
+
+.draft-actions {
+  display: flex;
+  gap: 2px;
+}
+
+@media (max-width: 640px) {
+  .task-editor {
+    grid-template-columns: 1fr 1fr;
+    margin-left: 8px;
+  }
+
+  .editor-close {
+    grid-column: 2;
+  }
+
+  .composer-hint {
+    display: none;
+  }
+}
+
+.preview-hint {
+  margin-top: -2px;
+}
+
+.preview-hint .icon {
+  display: inline-block;
+  vertical-align: -2px;
+}

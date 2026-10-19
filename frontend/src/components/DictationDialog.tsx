@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Day, DraftItem, VoiceStatus } from "../api";
+import type { Day, VoiceStatus } from "../api";
 import { api } from "../api";
-import { formatClock, formatMinutes } from "../utils";
+import { formatClock } from "../utils";
+import { DraftList, flatten, unflatten, type DraftRow } from "./DraftList";
 import { Icon } from "./Icon";
 
 type Phase = "idle" | "recording" | "transcribing";
@@ -14,9 +15,14 @@ function pickMime(): string | undefined {
   return types.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t));
 }
 
-function countItems(items: DraftItem[]): number {
-  return items.reduce((n, i) => n + 1 + countItems(i.children), 0);
-}
+const HELP: [string, string][] = [
+  ["Новая задача", "точка или «потом»: «Купить хлеб. Потом позвонить маме»"],
+  ["Подзадача", "«подзадача собрать данные» — вложится в предыдущую задачу"],
+  ["Оценка", "«на 30 минут», «на час», «полтора часа»"],
+  ["Срок", "«до пятницы», «к 25 октября», «до конца недели»"],
+  ["Проект", "«…, проект Работа» или «по проекту Работа»"],
+  ["Тег", "«тег срочно»"],
+];
 
 function loadMic(): string {
   try {
@@ -65,7 +71,8 @@ export function DictationDialog({
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [text, setText] = useState("");
-  const [items, setItems] = useState<DraftItem[]>([]);
+  const [rows, setRows] = useState<DraftRow[]>([]);
+  const [edited, setEdited] = useState(false); // список правили руками — правка текста их сбросит
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -86,14 +93,20 @@ export function DictationDialog({
   // перепарсинг текста при ручном редактировании
   useEffect(() => {
     if (!text.trim()) {
-      setItems([]);
+      setRows([]);
       return;
     }
     const h = setTimeout(() => {
-      api.parse(text).then((r) => setItems(r.items)).catch((e) => setError(e.message));
+      api
+        .parse(text, day)
+        .then((r) => {
+          setRows(flatten(r.items));
+          setEdited(false);
+        })
+        .catch((e) => setError(e.message));
     }, 250);
     return () => clearTimeout(h);
-  }, [text]);
+  }, [text, day]);
 
   useEffect(() => {
     if (phase !== "recording") return;
@@ -221,14 +234,14 @@ export function DictationDialog({
 
   async function add() {
     try {
-      onAdded(await api.addBulk(day, items));
+      onAdded(await api.addBulk(day, unflatten(rows)));
       onClose();
     } catch (e) {
       setError((e as Error).message);
     }
   }
 
-  const total = countItems(items);
+  const total = unflatten(rows).reduce((n, i) => n + 1 + i.children.length, 0);
   const hasLabels = mics.some((m) => m.label);
 
   return (
@@ -326,26 +339,50 @@ export function DictationDialog({
 
         {notice && <div className="notice">{notice}</div>}
 
-        <label className="field-label" htmlFor="dictation-text">
-          Текст (можно править — превью обновится)
-        </label>
-        <textarea
-          id="dictation-text"
-          className="textarea"
-          rows={4}
-          value={text}
-          placeholder={"Каждая задача с новой строки или через точку.\nПодзадача … — добавит подзадачу к предыдущей."}
-          onChange={(e) => setText(e.target.value)}
-        />
+        {rows.length === 0 && phase !== "transcribing" && (
+          <div className="dictation-help">
+            <div className="field-label">Как говорить</div>
+            <dl>
+              {HELP.map(([what, how]) => (
+                <div key={what}>
+                  <dt>{what}</dt>
+                  <dd>{how}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+
+        {rows.length > 0 && (
+          <div className="preview">
+            <div className="field-label">Будет добавлено · {total}</div>
+            <div className="preview-hint muted small">
+              Нажмите на название, чтобы исправить · <Icon name="indent" size={12} /> — сделать подзадачей
+              предыдущей · × — убрать
+            </div>
+            <DraftList
+              rows={rows}
+              onChange={(next) => {
+                setRows(next);
+                setEdited(true);
+              }}
+            />
+          </div>
+        )}
 
         {error && <div className="error">{error}</div>}
 
-        {items.length > 0 && (
-          <div className="preview">
-            <div className="field-label">Будет добавлено</div>
-            <PreviewList items={items} />
-          </div>
-        )}
+        <details className="dictation-text" open={!startRecording || !canRecord || undefined}>
+          <summary className="field-label">Распознанный текст{edited ? " (правка текста сбросит изменения в списке)" : ""}</summary>
+          <textarea
+            id="dictation-text"
+            className="textarea"
+            rows={3}
+            value={text}
+            placeholder={"Каждая задача с новой строки или через точку.\nПодзадача … — добавит подзадачу к предыдущей."}
+            onChange={(e) => setText(e.target.value)}
+          />
+        </details>
 
         <footer className="dialog-foot">
           <button className="btn ghost" onClick={onClose} disabled={phase === "recording"}>
@@ -357,22 +394,5 @@ export function DictationDialog({
         </footer>
       </div>
     </div>
-  );
-}
-
-function PreviewList({ items }: { items: DraftItem[] }) {
-  return (
-    <ul className="preview-list">
-      {items.map((i, idx) => (
-        <li key={idx}>
-          <span className="preview-row">
-            <span className="check small" />
-            {i.title}
-            {i.estimate_min != null && <span className="chip">{formatMinutes(i.estimate_min)}</span>}
-          </span>
-          {i.children.length > 0 && <PreviewList items={i.children} />}
-        </li>
-      ))}
-    </ul>
   );
 }

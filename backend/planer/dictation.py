@@ -5,10 +5,16 @@
     или словами «потом», «затем», «дальше», «следующая задача», «и ещё»;
   * «подзадача …» добавляет подзадачу к текущей задаче,
     «подзадачи: а, б, в» — несколько подзадач через запятую;
-  * «на 30 минут», «на полчаса», «на два часа», «полтора часа» — оценка времени.
+  * «на 30 минут», «на полчаса», «на два часа», «полтора часа» — оценка времени;
+  * «до пятницы», «к 25 октября», «дедлайн завтра» — срок (см. dates.py);
+  * «…, проект Работа», «по проекту Работа», «@Работа» — проект;
+  * «тег срочно», «#срочно» — теги.
 """
 
 import re
+from datetime import date
+
+from .dates import extract_deadline
 
 NUMBER_WORDS = {
     "одну": 1, "одна": 1, "один": 1, "две": 2, "два": 2, "три": 3, "четыре": 4,
@@ -25,7 +31,7 @@ DURATION_RE = re.compile(
     (?:
         (?P<half>полчаса)
       | (?P<oneandhalf>полтора\s+часа)
-      | (?P<num>{_NUM})\s*(?P<unit>минут[уы]?|мин\.?|час(?:а|ов)?|ч\.?)
+      | (?P<num>{_NUM})\s*(?P<unit>минут[уы]?|мин\.?|час(?:а|ов)?|ч\.?|м\.?|h|m)
       | (?P<hour>час)
     )(?![а-яё])""",
     re.IGNORECASE | re.VERBOSE,
@@ -65,7 +71,7 @@ def extract_duration(text: str) -> tuple[str, int | None]:
     else:
         value = _to_number(m.group("num"))
         unit = m.group("unit").lower()
-        minutes = value * 60 if unit.startswith("ч") else value
+        minutes = value * 60 if unit[0] in "чh" else value
     cleaned = (text[: m.start()] + " " + text[m.end():]).strip()
     return cleaned, int(round(minutes)) or None
 
@@ -82,17 +88,58 @@ def _clean_title(text: str) -> str:
     return text[:1].upper() + text[1:] if text else text
 
 
-def _make_item(raw: str) -> dict | None:
-    text, minutes = extract_duration(raw)
+TAG_RE = re.compile(r"(?:#|(?<![а-яё])(?:с\s+)?(?:тег(?:ом)?|метк(?:а|ой))\s+)([\w-]+)", re.IGNORECASE)
+PROJECT_RE = re.compile(
+    r"""@(?:"(?P<quoted>[^"]+)"|(?P<word>[\w-]+))
+      | (?:,\s*|(?<![а-яё])(?:в|по|для)\s+)проект(?:е|у|а)?\s*:?\s+(?P<spoken>[\w-]+)""",
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def extract_tags(text: str) -> tuple[str, list[str]]:
+    tags: list[str] = []
+    for m in TAG_RE.finditer(text):
+        tag = m.group(1).lower()
+        if tag not in tags:
+            tags.append(tag)
+    return TAG_RE.sub(" ", text), tags
+
+
+def extract_project(text: str) -> tuple[str, str | None]:
+    m = PROJECT_RE.search(text)
+    if not m:
+        return text, None
+    name = (m.group("quoted") or m.group("word") or m.group("spoken")).strip()
+    return text[: m.start()] + " " + text[m.end():], name[:1].upper() + name[1:]
+
+
+def parse_line(raw: str, base: date | None = None) -> dict | None:
+    """Одна задача: заголовок + оценка, срок, проект, теги."""
+    base = base or date.today()
+    text, tags = extract_tags(raw)
+    text, project = extract_project(text)
+    text, deadline = extract_deadline(text, base)
+    text, minutes = extract_duration(text)
     title = _clean_title(text)
     if not title:
         return None
-    return {"title": title, "estimate_min": minutes, "children": []}
+    return {
+        "title": title,
+        "estimate_min": minutes,
+        "deadline": deadline.isoformat() if deadline else None,
+        "project": project,
+        "tags": tags,
+        "children": [],
+    }
 
 
-def parse_dictation(text: str) -> list[dict]:
-    """Превращает свободный текст в [{title, estimate_min, children: [...]}, ...]."""
+def parse_dictation(text: str, base: date | None = None) -> list[dict]:
+    """Превращает свободный текст в [{title, estimate_min, deadline, project, tags, children}, ...]."""
     tasks: list[dict] = []
+
+    def _make_item(raw: str) -> dict | None:
+        return parse_line(raw, base)
+
     for segment in TASK_SPLIT_RE.split(text or ""):
         if not segment or not segment.strip(" ,"):
             continue

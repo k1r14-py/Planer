@@ -50,18 +50,6 @@ export function liveSeconds(t: Task, now: number): number {
   return t.actual_sec + Math.max(0, (now - new Date(t.timer_started_at).getTime()) / 1000);
 }
 
-/** «Написать отчёт 30м» / «… 1.5ч» → заголовок + оценка в минутах. */
-export function parseQuickAdd(input: string): { title: string; estimate: number | null } {
-  const m = input.match(/\s+~?(\d+(?:[.,]\d+)?)\s*(m|м|мин|h|ч|час)\.?$/i);
-  if (!m) return { title: input.trim(), estimate: null };
-  const value = parseFloat(m[1].replace(",", "."));
-  const hours = /^(h|ч|час)$/i.test(m[2]);
-  return {
-    title: input.slice(0, m.index).trim(),
-    estimate: Math.round(hours ? value * 60 : value),
-  };
-}
-
 export function childrenMap(tasks: Task[]): Map<number | null, Task[]> {
   const map = new Map<number | null, Task[]>();
   for (const t of tasks) {
@@ -74,4 +62,24 @@ export function childrenMap(tasks: Task[]): Map<number | null, Task[]> {
 
 export function percent(part: number, total: number): number {
   return total ? Math.round((part / total) * 100) : 0;
+}
+
+const SHORT_DAYS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+
+export function daysBetween(from: string, to: string): number {
+  return Math.round((new Date(`${to}T12:00:00`).getTime() - new Date(`${from}T12:00:00`).getTime()) / 86400000);
+}
+
+export function shortDate(day: string): string {
+  const d = new Date(`${day}T12:00:00`);
+  return `${SHORT_DAYS[d.getDay()]}, ${d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}`;
+}
+
+/** Подпись и «тон» срока относительно дня, на который смотрим. */
+export function deadlineInfo(deadline: string, today: string): { label: string; tone: "overdue" | "soon" | "normal" } {
+  const diff = daysBetween(today, deadline);
+  if (diff < 0) return { label: `просрочено · ${shortDate(deadline)}`, tone: "overdue" };
+  if (diff === 0) return { label: "срок сегодня", tone: "soon" };
+  if (diff === 1) return { label: "срок завтра", tone: "soon" };
+  return { label: `до ${shortDate(deadline)}`, tone: diff <= 3 ? "soon" : "normal" };
 }

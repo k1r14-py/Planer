@@ -30,6 +30,13 @@ const PATHS: Record<string, string> = {
   forward: "M15 17l5-5-5-5M4 18v-2a4 4 0 0 1 4-4h12",
   text: "M4 6h16M4 12h16M4 18h10",
   loader: "M21 12a9 9 0 1 1-6.2-8.6",
+  folder: "M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+  tag: "M3 12V4h8l10 10-8 8zM7.5 7.5h.01",
+  search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3",
+  sliders: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4",
+  indent: "M3 6h18M9 12h12M9 18h12M3 10l3 2-3 2",
+  outdent: "M3 6h18M9 12h12M9 18h12M6 10l-3 2 3 2",
+  target: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
 };
 
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {

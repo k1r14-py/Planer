@@ -54,3 +54,30 @@ def test_decimal_does_not_split_task():
 def test_empty():
     assert parse_dictation("") == []
     assert parse_dictation(" ... ") == []
+
+
+def test_project_tags_deadline_from_speech():
+    from datetime import date
+
+    items = parse_dictation(
+        "Доделать отчёт до пятницы по проекту работа тег срочно. Подзадача собрать данные. "
+        "Потом купить продукты, проект дом",
+        date(2026, 10, 19),
+    )
+    a, b = items
+    assert (a["title"], a["deadline"], a["project"], a["tags"]) == ("Доделать отчёт", "2026-10-23", "Работа", ["срочно"])
+    assert a["children"][0]["title"] == "Собрать данные"
+    assert (b["title"], b["project"]) == ("Купить продукты", "Дом")
+
+
+def test_text_syntax():
+    from planer.dictation import parse_line
+
+    item = parse_line('Созвон 30м @"Клиент Х" #звонки', None)
+    assert (item["title"], item["estimate_min"], item["project"], item["tags"]) == ("Созвон", 30, "Клиент Х", ["звонки"])
+
+
+def test_word_project_in_title_is_kept():
+    from planer.dictation import parse_line
+
+    assert parse_line("Сделать проект дома", None)["title"] == "Сделать проект дома"

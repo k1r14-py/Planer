@@ -6,10 +6,12 @@ import { DictationDialog } from "./components/DictationDialog";
 import { HistoryView } from "./components/HistoryView";
 import { Icon } from "./components/Icon";
 import { PlanFactView } from "./components/PlanFactView";
+import { TasksView } from "./components/TasksView";
 import { UpdateButton } from "./components/UpdateButton";
+import { useProjects } from "./projects";
 import { formatDayTitle, isoDay, relativeLabel, shiftDay } from "./utils";
 
-type Tab = "day" | "planfact" | "history";
+type Tab = "day" | "planfact" | "tasks" | "history";
 type Theme = "light" | "dark";
 
 function storedTheme(): Theme {
@@ -32,6 +34,7 @@ export default function App() {
   const [voice, setVoice] = useState<VoiceStatus | null>(null);
   const [dictation, setDictation] = useState<null | { record: boolean }>(null);
   const [theme, setTheme] = useState<Theme>(storedTheme);
+  const { reload: reloadProjects } = useProjects();
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -68,11 +71,12 @@ export default function App() {
           if (r && typeof r === "object" && "tasks" in r && (r as Day).day === day) setData(r as Day);
           else load();
           setNow(Date.now());
+          reloadProjects(); // быстрая строка «@Проект» могла создать новый проект
         },
         (e) => setError(e.message),
       );
     },
-    [day, load],
+    [day, load, reloadProjects],
   );
 
   useEffect(() => {
@@ -97,6 +101,11 @@ export default function App() {
     run(api.carryOver(day, to).then((r) => r.day));
   };
 
+  const openDay = (d: string) => {
+    setDay(d);
+    setTab("day");
+  };
+
   const rel = relativeLabel(day, today);
 
   return (
@@ -113,6 +122,7 @@ export default function App() {
             [
               ["day", "День", "list"],
               ["planfact", "План / Факт", "columns"],
+              ["tasks", "Задачи", "search"],
               ["history", "История", "chart"],
             ] as const
           ).map(([id, label, icon]) => (
@@ -138,7 +148,7 @@ export default function App() {
       </header>
 
       <main className="content">
-        {tab !== "history" && (
+        {(tab === "day" || tab === "planfact") && (
           <div className="date-nav">
             <button className="icon-btn" onClick={() => setDay(shiftDay(day, -1))} aria-label="Предыдущий день">
               <Icon name="chevron-left" />
@@ -168,7 +178,9 @@ export default function App() {
           </div>
         )}
 
-        {tab === "history" ? (
+        {tab === "tasks" ? (
+          <TasksView today={today} onOpenDay={openDay} />
+        ) : tab === "history" ? (
           <HistoryView
             today={today}
             onPick={(d) => {
@@ -185,6 +197,7 @@ export default function App() {
             run={run}
             onDictate={(record) => setDictation({ record })}
             onCarryOver={carryOver}
+            onOpenDay={openDay}
           />
         ) : (
           <PlanFactView data={data} now={now} onChange={setData} />

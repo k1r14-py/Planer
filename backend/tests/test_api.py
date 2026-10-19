@@ -146,3 +146,95 @@ def test_transcribe_error_is_explained(client, monkeypatch):
     r = client.post("/api/voice/transcribe", files={"audio": ("rec.webm", b"x", "audio/webm")})
     assert r.status_code == 500
     assert r.json()["detail"] == "Ошибка распознавания: RuntimeError: модель не найдена"
+
+
+def quick(client, text, day=DAY, parent_id=None):
+    r = client.post("/api/tasks/quick", json={"day": day, "text": text, "parent_id": parent_id})
+    assert r.status_code == 200, r.text
+    return r.json()
+
+
+def test_quick_add_parses_everything(client):
+    day = quick(client, "Сдать отчёт 1.5ч до пятницы @Работа #срочно #отчёты")
+    t = by_title(day)["Сдать отчёт"]
+    assert t["estimate_min"] == 90
+    assert t["deadline"] == "2026-10-23"  # DAY — понедельник
+    assert t["tags"] == ["отчёты", "срочно"]
+    projects = client.get("/api/projects").json()
+    assert [(p["name"], p["open_count"]) for p in projects] == [("Работа", 1)]
+    assert t["project_id"] == projects[0]["id"]
+    # подзадача наследует проект
+    day = quick(client, "собрать данные", parent_id=t["id"])
+    assert by_title(day)["Собрать данные"]["project_id"] == t["project_id"]
+    # тот же проект другим регистром — не дубль
+    quick(client, "ещё задача @работа")
+    assert len(client.get("/api/projects").json()) == 1
+
+
+def test_patch_tags_project_deadline(client):
+    a = add(client, "A")
+    p = client.post("/api/projects", json={"name": "Дом"}).json()
+    day = client.patch(f"/api/tasks/{a['id']}", json={
+        "tags": ["#Быт", "быт", "магазин"], "project_id": p["id"], "deadline": "2026-10-30",
+    }).json()
+    t = by_title(day)["A"]
+    assert t["tags"] == ["быт", "магазин"] and t["project_id"] == p["id"] and t["deadline"] == "2026-10-30"
+    day = client.patch(f"/api/tasks/{a['id']}", json={"project_id": None, "deadline": None, "tags": []}).json()
+    t = by_title(day)["A"]
+    assert t["project_id"] is None and t["deadline"] is None and t["tags"] == []
+    assert client.patch(f"/api/tasks/{a['id']}", json={"deadline": "завтра"}).status_code == 400
+
+
+def test_search_by_project_and_period(client):
+    quick(client, "Отчёт @Работа #срочно", day="2026-10-05")
+    quick(client, "Созвон @Работа", day="2026-10-19")
+    quick(client, "Старое @Работа", day="2026-09-01")
+    quick(client, "Уборка @Дом", day="2026-10-10")
+    pid = next(p["id"] for p in client.get("/api/projects").json() if p["name"] == "Работа")
+    r = client.get("/api/tasks/search", params={"project_id": pid, "start": "2026-10-01", "end": "2026-10-31"}).json()
+    assert [t["title"] for t in r["tasks"]] == ["Созвон", "Отчёт"]
+    assert r["summary"]["total"] == 2 and r["summary"]["done"] == 0
+    r = client.get("/api/tasks/search", params={"tag": "#срочно"}).json()
+    assert [t["title"] for t in r["tasks"]] == ["Отчёт"]
+    r = client.get("/api/tasks/search", params={"q": "убор"}).json()
+    assert [t["title"] for t in r["tasks"]] == ["Уборка"]
+    assert {t["tag"] for t in client.get("/api/tags").json()} == {"срочно"}
+
+
+def test_search_counts_subtasks_once(client):
+    day = quick(client, "Родитель @Работа")
+    pid = by_title(day)["Родитель"]["id"]
+    quick(client, "ребёнок", parent_id=pid)
+    r = client.get("/api/tasks/search", params={"q": ""}).json()
+    assert r["summary"]["total"] == 1
+    assert next(t for t in r["tasks"] if t["title"] == "Ребёнок")["parent_title"] == "Родитель"
+
+
+def test_deadlines_and_move_to_day(client):
+    quick(client, "Отчёт до пятницы", day="2026-10-16")  # пятница → следующая, 23.10
+    quick(client, "Налоги до 01.12.2026", day="2026-10-15")
+    quick(client, "Просрочено до 18.10", day="2026-10-10")
+    d = client.get("/api/deadlines", params={"day": DAY, "days": 7}).json()
+    assert [t["title"] for t in d] == ["Просрочено", "Отчёт"]
+    # перенос на сегодня вместе с подзадачей
+    tid = d[1]["id"]
+    quick(client, "часть", day="2026-10-16", parent_id=tid)
+    client.patch(f"/api/tasks/{tid}", json={"day": DAY})
+    today = by_title(client.get(f"/api/days/{DAY}").json())
+    assert today["Отчёт"]["moved_from"] == "2026-10-16" and today["Часть"]["parent_id"] == tid
+
+
+def test_carry_over_keeps_meta(client):
+    day = quick(client, "Отчёт до пятницы @Работа #срочно")
+    client.post(f"/api/days/{DAY}/carry-over", json={"to": "2026-10-20"})
+    t = by_title(client.get("/api/days/2026-10-20").json())["Отчёт"]
+    assert t["deadline"] == "2026-10-23" and t["tags"] == ["срочно"] and t["project_id"]
+
+
+def test_bulk_with_meta(client):
+    day = client.post("/api/tasks/bulk", json={"day": DAY, "items": [
+        {"title": "X", "deadline": "2026-10-23", "project": "Учёба", "tags": ["курс"], "children": [{"title": "x1"}]},
+    ]}).json()
+    t = by_title(day)
+    assert t["X"]["deadline"] == "2026-10-23" and t["X"]["tags"] == ["курс"]
+    assert t["x1"]["project_id"] == t["X"]["project_id"]

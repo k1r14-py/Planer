@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
-import type { Day } from "../api";
+import { useEffect, useState } from "react";
+import type { Day, Task } from "../api";
 import { api } from "../api";
-import { childrenMap, parseQuickAdd } from "../utils";
+import { ProjectChip, useProjects } from "../projects";
+import { childrenMap, deadlineInfo, shortDate } from "../utils";
 import { Icon } from "./Icon";
 import { SummaryCard } from "./SummaryCard";
 import { TaskList, type TaskCtx } from "./TaskItem";
@@ -12,33 +13,36 @@ export function DayView({
   run,
   onDictate,
   onCarryOver,
+  onOpenDay,
 }: {
   data: Day;
   now: number;
   run: TaskCtx["run"];
   onDictate: (record: boolean) => void;
   onCarryOver: () => void;
+  onOpenDay: (day: string) => void;
 }) {
   const [value, setValue] = useState("");
-  const input = useRef<HTMLInputElement>(null);
   const ctx: TaskCtx = {
     children: childrenMap(data.tasks),
     now,
+    day: data.day,
     run,
   };
   const locked = !!data.plan_locked_at;
   const open = data.summary.open;
 
   const submit = () => {
-    const { title, estimate } = parseQuickAdd(value);
-    if (!title) return;
-    run(api.addTask(data.day, title, null, estimate));
+    if (!value.trim()) return;
+    run(api.quickAdd(data.day, value));
     setValue("");
   };
 
   return (
     <div className="day-view">
       <SummaryCard data={data} now={now} />
+
+      <DeadlinesPanel data={data} run={run} onOpenDay={onOpenDay} />
 
       <div className="plan-state">
         {locked ? (
@@ -65,22 +69,27 @@ export function DayView({
         )}
       </div>
 
-      <div className="composer">
-        <Icon name="plus" />
-        <input
-          ref={input}
-          id="quick-add"
-          value={value}
-          placeholder={locked ? "Добавить внеплановую задачу…  (например «Созвон 30м»)" : "Добавить задачу…  (например «Отчёт 1.5ч»)"}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-        />
-        <button className="icon-btn" title="Вставить список текстом" onClick={() => onDictate(false)}>
-          <Icon name="text" />
-        </button>
-        <button className="mic-btn" title="Надиктовать (V)" onClick={() => onDictate(true)}>
-          <Icon name="mic" />
-        </button>
+      <div className="composer-wrap">
+        <div className="composer">
+          <Icon name="plus" />
+          <input
+            id="quick-add"
+            value={value}
+            placeholder={locked ? "Добавить внеплановую задачу…" : "Добавить задачу…"}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && submit()}
+          />
+          <button className="icon-btn" title="Вставить список текстом" onClick={() => onDictate(false)}>
+            <Icon name="text" />
+          </button>
+          <button className="mic-btn" title="Надиктовать (V)" onClick={() => onDictate(true)}>
+            <Icon name="mic" />
+          </button>
+        </div>
+        <div className="composer-hint muted small">
+          Можно сразу указать: <code>1.5ч</code> · <code>до пятницы</code> · <code>@Проект</code> ·{" "}
+          <code>#тег</code>
+        </div>
       </div>
 
       {data.tasks.length ? (
@@ -103,5 +112,62 @@ export function DayView({
         </div>
       )}
     </div>
+  );
+}
+
+/** Открытые задачи из других дней, у которых срок в ближайшую неделю или уже прошёл. */
+function DeadlinesPanel({
+  data,
+  run,
+  onOpenDay,
+}: {
+  data: Day;
+  run: TaskCtx["run"];
+  onOpenDay: (day: string) => void;
+}) {
+  const { byId } = useProjects();
+  const [items, setItems] = useState<Task[]>([]);
+
+  useEffect(() => {
+    api.deadlines(data.day, 7).then(
+      (list) => setItems(list.filter((t) => t.day !== data.day)),
+      () => setItems([]),
+    );
+  }, [data]);
+
+  if (!items.length) return null;
+
+  return (
+    <section className="card deadlines">
+      <h3>
+        <Icon name="flag" /> Сроки
+        <span className="muted small">в других днях · ближайшие 7 дней и просроченные</span>
+      </h3>
+      <ul>
+        {items.map((t) => {
+          const info = deadlineInfo(t.deadline!, data.day);
+          const project = t.project_id != null ? byId.get(t.project_id) : undefined;
+          return (
+            <li key={t.id}>
+              <span className={`deadline ${info.tone}`}>
+                <Icon name="flag" /> {info.label}
+              </span>
+              <span className="dl-title">{t.title}</span>
+              {project && <ProjectChip project={project} />}
+              <span className="dl-actions">
+                <button className="btn ghost sm" onClick={() => onOpenDay(t.day)} title="Открыть день, где задача запланирована">
+                  {shortDate(t.day)}
+                </button>
+                {t.parent_id === null && (
+                  <button className="btn sm" onClick={() => run(api.patchTask(t.id, { day: data.day }))}>
+                    Взять на этот день
+                  </button>
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

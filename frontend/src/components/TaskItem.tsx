@@ -1,38 +1,66 @@
 import { useEffect, useRef, useState } from "react";
 import type { Day, Task } from "../api";
 import { api } from "../api";
-import { formatClock, formatMinutes, liveSeconds, parseQuickAdd } from "../utils";
+import { ProjectChip, useProjects } from "../projects";
+import { deadlineInfo, formatClock, formatMinutes, liveSeconds } from "../utils";
 import { Icon } from "./Icon";
+import { TaskEditor } from "./TaskEditor";
 
 export interface TaskCtx {
   children: Map<number | null, Task[]>;
   now: number;
+  day: string; // день, который сейчас открыт, — от него считаются сроки
   run: (p: Promise<Day | unknown>) => void;
 }
 
 // id перетаскиваемой задачи (HTML5 DnD не даёт прочитать данные в dragover)
 let dragging: Task | null = null;
 
-export function TaskList({ parent, ctx, depth = 0 }: { parent: number | null; ctx: TaskCtx; depth?: number }) {
+export function TaskList({
+  parent,
+  ctx,
+  depth = 0,
+  parentProject = null,
+}: {
+  parent: number | null;
+  ctx: TaskCtx;
+  depth?: number;
+  parentProject?: number | null;
+}) {
   const items = ctx.children.get(parent) ?? [];
   if (!items.length) return null;
   return (
     <ul className={depth ? "task-list nested" : "task-list"}>
       {items.map((t) => (
-        <TaskItem key={t.id} task={t} siblings={items} ctx={ctx} depth={depth} />
+        <TaskItem key={t.id} task={t} siblings={items} ctx={ctx} depth={depth} parentProject={parentProject} />
       ))}
     </ul>
   );
 }
 
-function TaskItem({ task, siblings, ctx, depth }: { task: Task; siblings: Task[]; ctx: TaskCtx; depth: number }) {
+function TaskItem({
+  task,
+  siblings,
+  ctx,
+  depth,
+  parentProject,
+}: {
+  task: Task;
+  siblings: Task[];
+  ctx: TaskCtx;
+  depth: number;
+  parentProject: number | null;
+}) {
   const kids = ctx.children.get(task.id) ?? [];
+  const { byId } = useProjects();
+  const project = task.project_id != null && task.project_id !== parentProject ? byId.get(task.project_id) : undefined;
+  const deadline = task.deadline ? deadlineInfo(task.deadline, ctx.day) : null;
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [collapsed, setCollapsed] = useState(false);
   const [adding, setAdding] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [estimating, setEstimating] = useState(false);
+  const [details, setDetails] = useState(false);
   const [dropHint, setDropHint] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -143,23 +171,28 @@ function TaskItem({ task, siblings, ctx, depth }: { task: Task; siblings: Task[]
                 {kidsDone}/{kids.length}
               </span>
             )}
+            {project && <ProjectChip project={project} onClick={() => setDetails(true)} />}
+            {task.tags.map((t) => (
+              <span key={t} className="tag" onClick={() => setDetails(true)}>
+                #{t}
+              </span>
+            ))}
+            {deadline && (
+              <span
+                className={`deadline ${task.status === "todo" ? deadline.tone : "normal"}`}
+                onClick={() => setDetails(true)}
+                title={`Срок: ${task.deadline}`}
+              >
+                <Icon name="flag" /> {deadline.label}
+              </span>
+            )}
           </span>
         </div>
 
-        {estimating ? (
-          <EstimateInput
-            initial={task.estimate_min}
-            onDone={(v) => {
-              setEstimating(false);
-              if (v !== undefined) ctx.run(api.patchTask(task.id, { estimate_min: v }));
-            }}
-          />
-        ) : (
-          task.estimate_min != null && (
-            <button className="chip" onClick={() => setEstimating(true)} title="Оценка">
-              <Icon name="hourglass" /> {formatMinutes(task.estimate_min)}
-            </button>
-          )
+        {task.estimate_min != null && (
+          <button className="chip" onClick={() => setDetails(true)} title="Оценка">
+            <Icon name="hourglass" /> {formatMinutes(task.estimate_min)}
+          </button>
         )}
 
         {(spent > 0 || running) && (
@@ -191,8 +224,8 @@ function TaskItem({ task, siblings, ctx, depth }: { task: Task; siblings: Task[]
               <button onClick={() => setEditing(true)}>
                 <Icon name="edit" /> Переименовать
               </button>
-              <button onClick={() => setEstimating(true)}>
-                <Icon name="hourglass" /> Оценка времени
+              <button onClick={() => setDetails(true)}>
+                <Icon name="sliders" /> Срок, проект, теги, оценка…
               </button>
               {task.status === "todo" && (
                 <button onClick={() => ctx.run(api.patchTask(task.id, { status: "skipped" }))}>
@@ -223,13 +256,11 @@ function TaskItem({ task, siblings, ctx, depth }: { task: Task; siblings: Task[]
         </div>
       </div>
 
-      {!collapsed && <TaskList parent={task.id} ctx={ctx} depth={depth + 1} />}
+      {details && <TaskEditor task={task} run={ctx.run} onClose={() => setDetails(false)} />}
+      {!collapsed && <TaskList parent={task.id} ctx={ctx} depth={depth + 1} parentProject={task.project_id} />}
       {adding && (
         <SubtaskInput
-          onSubmit={(text) => {
-            const { title, estimate } = parseQuickAdd(text);
-            if (title) ctx.run(api.addTask(task.day, title, task.id, estimate));
-          }}
+          onSubmit={(text) => ctx.run(api.quickAdd(task.day, text, task.id))}
           onClose={() => setAdding(false)}
         />
       )}
@@ -257,28 +288,5 @@ function SubtaskInput({ onSubmit, onClose }: { onSubmit: (t: string) => void; on
         }}
       />
     </div>
-  );
-}
-
-function EstimateInput({ initial, onDone }: { initial: number | null; onDone: (v: number | null | undefined) => void }) {
-  const [value, setValue] = useState(initial?.toString() ?? "");
-  const commit = () => {
-    const n = parseInt(value, 10);
-    onDone(value.trim() === "" ? null : Number.isFinite(n) ? n : undefined);
-  };
-  return (
-    <input
-      className="estimate-input"
-      autoFocus
-      inputMode="numeric"
-      placeholder="мин"
-      value={value}
-      onChange={(e) => setValue(e.target.value.replace(/\D/g, ""))}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") commit();
-        if (e.key === "Escape") onDone(undefined);
-      }}
-    />
   );
 }

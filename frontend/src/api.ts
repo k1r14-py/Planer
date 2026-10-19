@@ -15,6 +15,42 @@ export interface Task {
   moved_from: string | null;
   created_at: string;
   done_at: string | null;
+  project_id: number | null;
+  deadline: string | null;
+  tags: string[];
+}
+
+export interface FoundTask extends Task {
+  parent_title: string | null;
+}
+
+export interface Project {
+  id: number;
+  name: string;
+  color: string;
+  archived: boolean;
+  task_count?: number;
+  open_count?: number;
+}
+
+export interface TagCount {
+  tag: string;
+  count: number;
+}
+
+export interface SearchResult {
+  tasks: FoundTask[];
+  summary: { total: number; done: number; open: number; estimate_min: number; actual_sec: number };
+}
+
+export interface SearchQuery {
+  start?: string;
+  end?: string;
+  project_id?: number;
+  no_project?: boolean;
+  tag?: string;
+  status?: Status | "open";
+  q?: string;
 }
 
 export interface Summary {
@@ -45,6 +81,9 @@ export interface HistoryRow extends Summary {
 export interface DraftItem {
   title: string;
   estimate_min: number | null;
+  deadline: string | null;
+  project: string | null;
+  tags: string[];
   children: DraftItem[];
 }
 
@@ -101,13 +140,36 @@ export const api = {
   unlock: (day: string) => request<Day>("POST", `/api/days/${day}/unlock`),
   carryOver: (day: string, to: string) =>
     request<{ moved: number; day: Day }>("POST", `/api/days/${day}/carry-over`, { to }),
+  deadlines: (day: string, days = 7) => request<Task[]>("GET", `/api/deadlines?day=${day}&days=${days}`),
+  search: (q: SearchQuery) => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(q)) if (v !== undefined && v !== "" && v !== false) params.set(k, String(v));
+    return request<SearchResult>("GET", `/api/tasks/search?${params}`);
+  },
+  projects: () => request<Project[]>("GET", "/api/projects"),
+  createProject: (name: string, color?: string) => request<Project>("POST", "/api/projects", { name, color }),
+  patchProject: (id: number, patch: Partial<Pick<Project, "name" | "color" | "archived">>) =>
+    request<Project>("PATCH", `/api/projects/${id}`, patch),
+  deleteProject: (id: number) => request<{ ok: boolean }>("DELETE", `/api/projects/${id}`),
+  tags: () => request<TagCount[]>("GET", "/api/tags"),
   history: (start: string, end: string) =>
     request<HistoryRow[]>("GET", `/api/history?start=${start}&end=${end}`),
 
   addTask: (day: string, title: string, parent_id: number | null, estimate_min: number | null) =>
     request<Task>("POST", "/api/tasks", { day, title, parent_id, estimate_min }),
+  quickAdd: (day: string, text: string, parent_id: number | null = null) =>
+    request<Day>("POST", "/api/tasks/quick", { day, text, parent_id }),
   addBulk: (day: string, items: DraftItem[]) => request<Day>("POST", "/api/tasks/bulk", { day, items }),
-  patchTask: (id: number, patch: Partial<Pick<Task, "title" | "notes" | "status" | "estimate_min" | "actual_sec" | "position" | "planned">>) =>
+  patchTask: (
+    id: number,
+    patch: Partial<
+      Pick<
+        Task,
+        | "title" | "notes" | "status" | "estimate_min" | "actual_sec" | "position" | "planned"
+        | "project_id" | "deadline" | "tags" | "day"
+      >
+    >,
+  ) =>
     request<Day>("PATCH", `/api/tasks/${id}`, patch),
   deleteTask: (id: number) => request<Day>("DELETE", `/api/tasks/${id}`),
   timerStart: (id: number) => request<Day>("POST", `/api/tasks/${id}/timer/start`),
@@ -129,5 +191,5 @@ export const api = {
       fd,
     );
   },
-  parse: (text: string) => request<{ items: DraftItem[] }>("POST", "/api/voice/parse", { text }),
+  parse: (text: string, day?: string) => request<{ items: DraftItem[] }>("POST", "/api/voice/parse", { text, day }),
 };
