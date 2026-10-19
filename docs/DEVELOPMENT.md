@@ -10,7 +10,7 @@ backend/         Python 3.10+, FastAPI + SQLite
   planer/dates.py      разбор сроков: «до пятницы», «к 25 октября», «до конца месяца»…
   planer/speech.py     локальное распознавание речи (faster-whisper)
   planer/stats.py      статистика для дашборда
-  planer/ai/           ИИ-помощник: OpenAI-совместимый клиент, функции, автоустановка Ollama
+  planer/ai/           ИИ-помощник: OpenAI-совместимый клиент, вход по подписке ChatGPT, функции, автоустановка Ollama
   planer/updater.py    обновление из GitHub Releases, planer/restarter.py — перезапуск с откатом
 frontend/        React + TypeScript + Vite, без UI-библиотек; стиль — CSS-переменные в src/styles.css
 desktop/         Electron-оболочка (окно, трей, горячая клавиша) + встроенная среда runtime/

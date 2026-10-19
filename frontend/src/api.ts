@@ -139,6 +139,15 @@ export interface AIProviderPreset {
   model: string;
   needs_key: boolean;
   key_url: string | null;
+  badge?: string;
+  login?: boolean;
+}
+
+export interface ChatGPTStatus {
+  state: "idle" | "waiting" | "done" | "error";
+  message: string;
+  url: string | null;
+  account: { email: string | null; plan_scope: boolean } | null;
 }
 
 export interface AISettings {
@@ -272,6 +281,9 @@ export const api = {
   aiReset: () => request<AISettings>("DELETE", "/api/ai/settings"),
   aiTest: (d: AISettingsDraft) => request<{ ok: boolean; model: string }>("POST", "/api/ai/test", d),
   aiModels: (d: AISettingsDraft) => request<string[]>("POST", "/api/ai/models", d),
+  chatgptLogin: () => request<ChatGPTStatus>("POST", "/api/ai/chatgpt/login"),
+  chatgptStatus: () => request<ChatGPTStatus>("GET", "/api/ai/chatgpt/status"),
+  chatgptLogout: () => request<ChatGPTStatus>("POST", "/api/ai/chatgpt/logout"),
   ollamaStatus: () => request<OllamaStatus>("GET", "/api/ai/ollama"),
   ollamaSetup: (model?: string) =>
     request<OllamaStatus["job"]>("POST", `/api/ai/ollama/setup${model ? `?model=${encodeURIComponent(model)}` : ""}`),

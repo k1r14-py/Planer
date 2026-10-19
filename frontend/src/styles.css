@@ -2924,3 +2924,50 @@ i.heat-cell.lvl-5 {
     display: none;
   }
 }
+
+.chatgpt-login {
+  display: grid;
+  gap: 12px;
+  align-self: stretch;
+}
+
+.btn.danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.icon-btn.danger-hover:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.rule-actions.confirm {
+  align-items: center;
+  gap: 6px;
+}
+
+.link-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.link-row .link-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.link-row .icon-btn {
+  flex: none;
+  margin-right: 4px;
+}
+
+.link-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: var(--danger-soft);
+}

@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from . import speech, stats, updater
+from .ai import chatgpt_plan as ai_chatgpt
 from .ai import client as ai_client
 from .ai import features as ai_features
 from .ai import ollama as ai_ollama
@@ -802,6 +803,22 @@ def ai_test(body: AISettingsIn):
 @app.post("/api/ai/models")
 def ai_models(body: AISettingsIn):
     return _ai_call(ai_client.list_models, _draft_cfg(body))
+
+
+@app.post("/api/ai/chatgpt/login")
+def ai_chatgpt_login():
+    return _ai_call(ai_chatgpt.start_login)
+
+
+@app.get("/api/ai/chatgpt/status")
+def ai_chatgpt_status():
+    return ai_chatgpt.login_status()
+
+
+@app.post("/api/ai/chatgpt/logout")
+def ai_chatgpt_logout():
+    ai_chatgpt.sign_out()
+    return ai_chatgpt.login_status()
 
 
 @app.get("/api/ai/ollama")

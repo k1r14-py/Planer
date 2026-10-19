@@ -27,6 +27,7 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [probe, setProbe] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -35,7 +36,12 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const edit = (r: LinkRule) => {
-    setDraft({ id: r.id, keywords: r.keywords.join(", "), url: r.url, label: r.label });
+    setDraft({
+      id: r.id,
+      keywords: r.keywords.join(", "),
+      url: r.url,
+      label: r.label,
+    });
     setFormOpen(true);
     setError(null);
   };
@@ -43,7 +49,11 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
   const save = async () => {
     setSaving(true);
     setError(null);
-    const body = { keywords: splitWords(draft.keywords), url: draft.url.trim(), label: draft.label.trim() };
+    const body = {
+      keywords: splitWords(draft.keywords),
+      url: draft.url.trim(),
+      label: draft.label.trim(),
+    };
     try {
       if (draft.id) await api.updateLink(draft.id, body);
       else await api.createLink(body);
@@ -57,18 +67,34 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const remove = async (r: LinkRule) => {
-    if (!confirm(`Удалить ссылку «${r.label || r.url}»?`)) return;
-    await api.deleteLink(r.id);
-    reload();
+  const remove = async (id: number) => {
+    setError(null);
+    try {
+      await api.deleteLink(id);
+      setConfirmId(null);
+      if (draft.id === id) {
+        setDraft(EMPTY);
+        setFormOpen(false);
+      }
+      reload();
+    } catch (e) {
+      setError((e as Error).message);
+    }
   };
 
   const words = splitWords(draft.keywords);
   const probeHits = probe.trim() ? matchLinks(rules, probe) : [];
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog wide" role="dialog" aria-label="Ссылки по ключевым словам">
+    <div
+      className="overlay"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        className="dialog wide"
+        role="dialog"
+        aria-label="Ссылки по ключевым словам"
+      >
         <header className="dialog-head">
           <h2>
             <Icon name="link" /> Ссылки по ключевым словам
@@ -79,14 +105,21 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
         </header>
 
         <p className="muted dialog-intro">
-          Задайте слова и ссылку — у задачи, где встречаются <strong>все</strong> эти слова, появится значок{" "}
-          <Icon name="link" size={13} /> со ссылкой. Например, «нок + лонгрид» → задача в Jira, «нок + скринкаст» →
-          другая. Учитываются название, проект и теги задачи; окончания не важны («лонгрид» найдёт «лонгрида»).
+          Задайте слова и ссылку — у задачи, где встречаются{" "}
+          <strong>все</strong> эти слова, появится значок{" "}
+          <Icon name="link" size={13} /> со ссылкой. Например, «нок + лонгрид» →
+          задача в Jira, «нок + скринкаст» → другая. Учитываются название,
+          проект и теги задачи; окончания не важны («лонгрид» найдёт
+          «лонгрида»).
         </p>
 
         <label className="form-field probe">
           <span>Проверить</span>
-          <input value={probe} onChange={(e) => setProbe(e.target.value)} placeholder="Впишите задачу, например: Сделал лонгрид по НОК" />
+          <input
+            value={probe}
+            onChange={(e) => setProbe(e.target.value)}
+            placeholder="Впишите задачу, например: Сделал лонгрид по НОК"
+          />
           {probe.trim() && (
             <span className={probeHits.length ? "probe-hit" : "muted small"}>
               {probeHits.length
@@ -99,7 +132,10 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
         {rules.length > 0 && (
           <ul className="rule-list">
             {rules.map((r) => (
-              <li key={r.id} className={probeHits.some((h) => h.id === r.id) ? "hit" : ""}>
+              <li
+                key={r.id}
+                className={probeHits.some((h) => h.id === r.id) ? "hit" : ""}
+              >
                 <span className="rule-words">
                   {r.keywords.map((k, i) => (
                     <span key={k}>
@@ -110,18 +146,51 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
                 </span>
                 <span className="rule-target">
                   {r.label && <strong>{r.label}</strong>}
-                  <a href={r.url} target="_blank" rel="noreferrer" className="small">
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="small"
+                  >
                     {r.url}
                   </a>
                 </span>
-                <span className="rule-actions">
-                  <button className="icon-btn sm" onClick={() => edit(r)} title="Изменить">
-                    <Icon name="edit" />
-                  </button>
-                  <button className="icon-btn sm" onClick={() => remove(r)} title="Удалить">
-                    <Icon name="trash" />
-                  </button>
-                </span>
+                {confirmId === r.id ? (
+                  <span className="rule-actions confirm">
+                    <span className="small">Удалить?</span>
+                    <button
+                      className="btn sm danger"
+                      onClick={() => remove(r.id)}
+                    >
+                      Да
+                    </button>
+                    <button
+                      className="btn ghost sm"
+                      onClick={() => setConfirmId(null)}
+                    >
+                      Отмена
+                    </button>
+                  </span>
+                ) : (
+                  <span className="rule-actions">
+                    <button
+                      className="icon-btn sm"
+                      onClick={() => edit(r)}
+                      title="Изменить"
+                      aria-label="Изменить"
+                    >
+                      <Icon name="edit" />
+                    </button>
+                    <button
+                      className="icon-btn sm danger-hover"
+                      onClick={() => setConfirmId(r.id)}
+                      title="Удалить ссылку"
+                      aria-label="Удалить ссылку"
+                    >
+                      <Icon name="trash" />
+                    </button>
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -130,11 +199,15 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
         {formOpen ? (
           <div className="provider-form rule-form">
             <label className="form-field">
-              <span>Ключевые слова — через запятую, должны встретиться все</span>
+              <span>
+                Ключевые слова — через запятую, должны встретиться все
+              </span>
               <input
                 autoFocus
                 value={draft.keywords}
-                onChange={(e) => setDraft({ ...draft, keywords: e.target.value })}
+                onChange={(e) =>
+                  setDraft({ ...draft, keywords: e.target.value })
+                }
                 placeholder="нок, лонгрид"
               />
               {words.length > 0 && (
@@ -159,11 +232,18 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
             </label>
             <label className="form-field">
               <span>Название (необязательно)</span>
-              <input value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="Лонгрид НОК в Jira" />
+              <input
+                value={draft.label}
+                onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+                placeholder="Лонгрид НОК в Jira"
+              />
             </label>
-            {error && <div className="error">{error}</div>}
             <div className="field-row">
-              <button className="btn primary" onClick={save} disabled={saving || !words.length || !draft.url.trim()}>
+              <button
+                className="btn primary"
+                onClick={save}
+                disabled={saving || !words.length || !draft.url.trim()}
+              >
                 {draft.id ? "Сохранить" : "Добавить ссылку"}
               </button>
               <button
@@ -176,6 +256,17 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
               >
                 Отмена
               </button>
+              {draft.id && (
+                <>
+                  <span className="spacer" />
+                  <button
+                    className="btn ghost danger-text"
+                    onClick={() => remove(draft.id!)}
+                  >
+                    <Icon name="trash" /> Удалить
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -183,6 +274,8 @@ export function LinkSettingsDialog({ onClose }: { onClose: () => void }) {
             <Icon name="plus" /> Добавить ссылку
           </button>
         )}
+
+        {error && <div className="error">{error}</div>}
 
         <p className="privacy-note small">
           <Icon name="lock" /> Ссылки хранятся только на этом компьютере.

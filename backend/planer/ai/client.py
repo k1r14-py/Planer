@@ -1,8 +1,9 @@
 """Подключение к языковой модели через OpenAI-совместимый API.
 
-Один клиент на всех: OpenAI (ChatGPT), DeepSeek, Qwen (Alibaba Cloud), OpenRouter
+Один клиент на всех: OpenAI, DeepSeek, Qwen (Alibaba Cloud), Gemini, OpenRouter
 и локальная Ollama — все принимают POST {base_url}/chat/completions.
 Ответ просим в JSON (response_format json_object поддерживают все перечисленные).
+Исключение — ChatGPT по подписке: вход через аккаунт и свой протокол, см. chatgpt_plan.py.
 """
 
 import json
@@ -24,6 +25,26 @@ PROVIDERS = {
         "model": "qwen2.5:7b",
         "needs_key": False,
         "key_url": None,
+        "badge": "бесплатно · приватно",
+    },
+    "chatgpt": {
+        "name": "ChatGPT по подписке",
+        "hint": "Войдите своим аккаунтом ChatGPT Plus или Pro — запросы идут из лимитов подписки, ключ не нужен.",
+        "base_url": "https://api.openai.com/v1",
+        "model": "",
+        "needs_key": False,
+        "key_url": None,
+        "badge": "вход через аккаунт",
+        "login": True,
+    },
+    "gemini": {
+        "name": "Google Gemini",
+        "hint": "Бесплатный ключ из Google AI Studio (с дневными лимитами). Подписка Gemini сюда не подключается.",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+        "model": "gemini-2.5-flash",
+        "needs_key": True,
+        "key_url": "https://aistudio.google.com/apikey",
+        "badge": "бесплатный ключ",
     },
     "deepseek": {
         "name": "DeepSeek",
@@ -42,8 +63,8 @@ PROVIDERS = {
         "key_url": "https://modelstudio.console.alibabacloud.com/",
     },
     "openai": {
-        "name": "ChatGPT (OpenAI)",
-        "hint": "Модели OpenAI. Нужен API-ключ (это не подписка ChatGPT Plus — оплата отдельная).",
+        "name": "OpenAI API",
+        "hint": "Модели OpenAI по API-ключу. Оплата отдельно от подписки ChatGPT — за каждый запрос.",
         "base_url": "https://api.openai.com/v1",
         "model": "gpt-4o-mini",
         "needs_key": True,
@@ -115,6 +136,11 @@ def is_configured(cfg: dict | None = None) -> bool:
     cfg = cfg or load_settings()
     if not cfg["provider"] or not cfg["base_url"] or not cfg["model"]:
         return False
+    if cfg["provider"] == "chatgpt":
+        from . import chatgpt_plan
+
+        acc = chatgpt_plan.account()
+        return bool(acc and acc["plan_scope"])
     preset = PROVIDERS.get(cfg["provider"], {})
     return bool(cfg["api_key"]) or not preset.get("needs_key")
 
@@ -162,6 +188,10 @@ def _request(cfg: dict, path: str, body: dict | None = None, timeout: float = 12
 
 def list_models(cfg: dict | None = None) -> list[str]:
     cfg = cfg or load_settings()
+    if cfg.get("provider") == "chatgpt":
+        from . import chatgpt_plan
+
+        return chatgpt_plan.list_models()
     data = _request(cfg, "/models", timeout=20)
     return sorted(m["id"] for m in data.get("data", []) if m.get("id"))
 
@@ -189,6 +219,12 @@ def extract_json(text: str) -> dict:
 
 def chat_json(system: str, user: str, cfg: dict | None = None, timeout: float = 120) -> dict:
     cfg = cfg or load_settings()
+    if cfg.get("provider") == "chatgpt":
+        from . import chatgpt_plan
+
+        if not cfg.get("model"):
+            raise AIError("Выберите модель ChatGPT в настройках ИИ.")
+        return extract_json(chatgpt_plan.chat_text(system, user, cfg["model"], timeout=timeout))
     if not is_configured(cfg):
         raise AIError("ИИ не настроен — откройте настройки ИИ.")
     body = {
