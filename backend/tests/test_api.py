@@ -299,3 +299,25 @@ def test_migration_recolors_default_projects(tmp_path, monkeypatch):
     db.init_db()
     with sqlite3.connect(tmp_path / "old.db") as c:
         assert [r[0] for r in c.execute("SELECT color FROM projects ORDER BY id")] == ["#6d5efc", "#16a36a", "#e5484d"]
+
+
+def test_shutdown_requires_token(client, monkeypatch):
+    import os
+    import signal
+
+    from planer import app as appmod
+
+    killed = []
+    monkeypatch.setattr(appmod.threading, "Timer", lambda delay, fn: type("T", (), {"start": lambda self: fn()})())
+    monkeypatch.setattr(appmod.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    monkeypatch.delenv("PLANER_CONTROL_TOKEN", raising=False)
+    assert client.post("/api/admin/shutdown").status_code == 403
+    monkeypatch.setenv("PLANER_CONTROL_TOKEN", "secret")
+    assert client.post("/api/admin/shutdown", headers={"X-Planer-Token": "wrong"}).status_code == 403
+    assert client.post("/api/admin/shutdown", headers={"X-Planer-Token": "secret"}).status_code == 200
+    assert killed == [(os.getpid(), signal.SIGTERM)]
+
+
+def test_voice_status_has_state(client):
+    s = client.get("/api/voice/status").json()
+    assert s["state"] in ("idle", "loading", "ready", "error")

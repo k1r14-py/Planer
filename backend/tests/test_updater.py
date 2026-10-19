@@ -127,3 +127,15 @@ def test_check(install_dir, monkeypatch):
     assert "_archive" not in updater.public(info)
     (install_dir / "VERSION").write_text("0.2.0")
     assert not updater.check(install_dir)["available"]
+
+
+def test_mac_launcher_refresh_skips_real_app(tmp_path, monkeypatch):
+    exe = tmp_path / "Applications" / "Planer.app" / "Contents" / "MacOS" / "Planer"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"\xcf\xfa\xed\xfe binary electron")
+    (tmp_path / "root" / "mac").mkdir(parents=True)
+    (tmp_path / "root" / "mac" / "launcher.sh").write_text("#!/bin/bash\nREPO=__REPO__")
+    monkeypatch.setattr(updater.sys, "platform", "darwin")
+    monkeypatch.setattr(updater.Path, "home", lambda: tmp_path)
+    updater.refresh_mac_launcher(tmp_path / "root")
+    assert exe.read_bytes().startswith(b"\xcf\xfa")

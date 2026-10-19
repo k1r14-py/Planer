@@ -16,6 +16,8 @@ TARGET_PEAK = 0.5  # тихую запись усиливаем до этого 
 
 _model = None
 _lock = threading.Lock()
+# idle — модель ещё не загружалась; loading — скачивается/загружается; ready; error
+state = {"state": "idle", "error": None}
 
 
 def available() -> bool:
@@ -27,10 +29,29 @@ def _get_model():
     global _model
     with _lock:
         if _model is None:
-            from faster_whisper import WhisperModel
+            state.update(state="loading", error=None)
+            try:
+                from faster_whisper import WhisperModel
 
-            _model = WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE)
+                _model = WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE)
+            except Exception as e:
+                state.update(state="error", error=str(e))
+                raise
+            state.update(state="ready")
         return _model
+
+
+def preload_in_background() -> None:
+    """Скачивает и загружает модель заранее, чтобы первая диктовка не ждала ~500 МБ."""
+    if available() and _model is None:
+        threading.Thread(target=lambda: _safe_preload(), daemon=True).start()
+
+
+def _safe_preload() -> None:
+    try:
+        _get_model()
+    except Exception:
+        pass  # ошибка сохранена в state — интерфейс её покажет
 
 
 def _decode(audio: bytes):

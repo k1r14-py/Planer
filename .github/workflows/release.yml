@@ -1,5 +1,6 @@
-# Публикует релиз, когда меняется файл VERSION: собирает интерфейс и выкладывает
-# planer-vX.Y.Z.zip (+ .sha256). Его скачивает кнопка «Проверить обновления» в приложении.
+# Публикует релиз, когда меняется файл VERSION:
+#   • planer-vX.Y.Z.zip (+ .sha256) — код с собранным интерфейсом, его ставит кнопка «Обновить» внутри Planer;
+#   • приложения: Planer-X.Y.Z-mac-arm64.dmg, Planer-X.Y.Z-mac-x64.dmg, Planer-X.Y.Z-win-x64.exe.
 name: Release
 
 on:
@@ -11,63 +12,125 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      exists: ${{ steps.v.outputs.exists }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Версия
-        id: v
+      - id: v
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="$(tr -d ' \r\n' < VERSION)"
           echo "version=$V" >> "$GITHUB_OUTPUT"
-          if gh release view "v$V" >/dev/null 2>&1; then
+          if gh release view "v$V" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Релиз v$V уже есть — пропускаю"
             echo "exists=1" >> "$GITHUB_OUTPUT"
           fi
 
+  code:
+    needs: version
+    if: needs.version.outputs.exists != '1'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        if: steps.v.outputs.exists != '1'
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
       - uses: actions/setup-python@v5
-        if: steps.v.outputs.exists != '1'
         with:
           python-version: "3.12"
-
       - name: Тесты
-        if: steps.v.outputs.exists != '1'
         run: |
           sudo apt-get install -y -qq ffmpeg >/dev/null
           pip install -q -r backend/requirements-dev.txt -r backend/requirements-voice.txt
           cd backend && python -m pytest -q
-
       - name: Сборка интерфейса
-        if: steps.v.outputs.exists != '1'
         run: cd frontend && npm ci && npm run build
-
-      - name: Архив
-        if: steps.v.outputs.exists != '1'
+      - name: Архив кода
         run: |
-          V="${{ steps.v.outputs.version }}"
+          V="${{ needs.version.outputs.version }}"
           mkdir -p out/Planer
           git archive HEAD | tar -x -C out/Planer
           cp -r frontend/dist out/Planer/frontend/dist
           (cd out && zip -qr "../planer-v$V.zip" Planer)
           sha256sum "planer-v$V.zip" > "planer-v$V.zip.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: code
+          path: |
+            planer-v*.zip
+            planer-v*.zip.sha256
 
+  desktop:
+    needs: version
+    if: needs.version.outputs.exists != '1'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: mac-arm64
+            os: macos-14
+            target: --mac dmg --arm64
+            files: desktop/dist/*.dmg
+          - name: mac-x64
+            os: macos-15-intel
+            target: --mac dmg --x64
+            files: desktop/dist/*.dmg
+          - name: win-x64
+            os: windows-latest
+            target: --win nsis --x64
+            files: desktop/dist/*.exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v5
+      - name: Сборка интерфейса
+        shell: bash
+        run: cd frontend && npm ci && npm run build
+      - name: Встроенная среда (Python + зависимости + код)
+        shell: bash
+        run: |
+          cd desktop
+          npm ci
+          npm pkg set version="${{ needs.version.outputs.version }}"
+          node scripts/prepare-runtime.mjs
+      - name: Сборка приложения
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: cd desktop && npx electron-builder ${{ matrix.target }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ matrix.name }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  publish:
+    needs: [version, code, desktop]
+    # релиз выходит, даже если одна из сборок приложения упала — с тем, что собралось
+    if: always() && needs.version.outputs.exists != '1' && needs.code.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
       - name: Релиз
-        if: steps.v.outputs.exists != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          V="${{ steps.v.outputs.version }}"
-          # описание — раздел «## V» из CHANGELOG.md
+          V="${{ needs.version.outputs.version }}"
+          # описание — раздел «## V» из CHANGELOG.md + как установить
           awk -v v="## $V" '$0 == v {f=1; next} /^## /{f=0} f' CHANGELOG.md > notes.md
-          gh release create "v$V" "planer-v$V.zip" "planer-v$V.zip.sha256" \
-            --title "Planer $V" --notes-file notes.md --target "$GITHUB_SHA"
+          cat docs/INSTALL.md >> notes.md
+          find out -type f \( -name '*.zip' -o -name '*.sha256' -o -name '*.dmg' -o -name '*.exe' \) > files.txt
+          cat files.txt
+          gh release create "v$V" $(cat files.txt) --title "Planer $V" --notes-file notes.md --target "$GITHUB_SHA"

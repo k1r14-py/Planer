@@ -2665,3 +2665,10 @@ i.heat-cell.lvl-5 {
     display: none;
   }
 }
+
+.model-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}

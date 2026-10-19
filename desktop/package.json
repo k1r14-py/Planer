@@ -1,0 +1,100 @@
+{
+  "name": "planer-desktop",
+  "productName": "Planer",
+  "version": "0.6.0",
+  "description": "Планер дня: задачи, план и факт, голосовой ввод и ИИ-помощник",
+  "author": "Planer",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "prepare-runtime": "node scripts/prepare-runtime.mjs",
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "build": {
+    "appId": "local.planer.app",
+    "productName": "Planer",
+    "copyright": "Planer",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "splash.html",
+      "build/icon.png",
+      "build/tray*.png"
+    ],
+    "extraResources": [
+      {
+        "from": "runtime",
+        "to": "runtime",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asar": true,
+    "afterPack": "scripts/after-pack.cjs",
+    "artifactName": "Planer-${version}-${os}-${arch}.${ext}",
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "identity": null,
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Planer записывает голос, чтобы надиктовывать задачи. Запись распознаётся на этом компьютере.",
+        "LSApplicationCategoryType": "public.app-category.productivity"
+      }
+    },
+    "dmg": {
+      "title": "Planer ${version}",
+      "contents": [
+        {
+          "x": 140,
+          "y": 180
+        },
+        {
+          "x": 400,
+          "y": 180,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Planer",
+      "deleteAppDataOnUninstall": false
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "icon": "build/icon.png",
+      "category": "Office"
+    }
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/k1r14-py/Planer.git"
+  },
+  "homepage": "https://github.com/k1r14-py/Planer"
+}

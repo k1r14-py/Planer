@@ -14,6 +14,17 @@ import { useProjects } from "./projects";
 import { formatDayTitle, isoDay, relativeLabel, shiftDay } from "./utils";
 
 type Tab = "day" | "planfact" | "tasks" | "dashboard";
+
+// мост из оболочки приложения (desktop/preload.js); в браузере его нет
+declare global {
+  interface Window {
+    planerDesktop?: {
+      onDictate: (cb: () => void) => () => void;
+      onHotkey: (cb: (label: string) => void) => () => void;
+      getHotkey: () => Promise<string>;
+    };
+  }
+}
 type Theme = "light" | "dark";
 
 function storedTheme(): Theme {
@@ -36,6 +47,23 @@ export default function App() {
   const [voice, setVoice] = useState<VoiceStatus | null>(null);
   const [dictation, setDictation] = useState<null | { record: boolean }>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [hotkey, setHotkey] = useState<string | null>(null);
+
+  // приложение: глобальная горячая клавиша открывает диктовку из любой программы
+  useEffect(() => {
+    const desk = window.planerDesktop;
+    if (!desk) return;
+    const offDictate = desk.onDictate(() => {
+      setTab("day");
+      setDictation({ record: true });
+    });
+    const offHotkey = desk.onHotkey(setHotkey);
+    desk.getHotkey().then(setHotkey, () => {});
+    return () => {
+      offDictate();
+      offHotkey();
+    };
+  }, []);
   const [theme, setTheme] = useState<Theme>(storedTheme);
   const { reload: reloadProjects } = useProjects();
 
@@ -204,7 +232,14 @@ export default function App() {
       </main>
 
       <footer className="hints muted small">
-        <kbd>N</kbd> новая задача · <kbd>V</kbd> диктовка · <kbd>←</kbd>/<kbd>→</kbd> дни · <kbd>T</kbd> сегодня ·
+        <kbd>N</kbd> новая задача · <kbd>V</kbd> диктовка
+        {hotkey && (
+          <>
+            {" "}
+            (из любой программы — <kbd>{hotkey}</kbd>)
+          </>
+        )}{" "}
+        · <kbd>←</kbd>/<kbd>→</kbd> дни · <kbd>T</kbd> сегодня ·
         двойной клик — переименовать · перетаскивание — порядок
       </footer>
 

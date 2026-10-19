@@ -79,6 +79,26 @@ export function Recorder({
   const maxLevel = useRef(0);
 
   const canRecord = !!voice?.available;
+  // модель распознавания скачивается в фоне при первом запуске — показываем, пока не готова
+  const [model, setModel] = useState(voice?.state);
+  const [modelError, setModelError] = useState(voice?.error ?? null);
+  useEffect(() => {
+    if (!canRecord) return;
+    let alive = true;
+    let timer = 0;
+    const poll = () =>
+      api.voiceStatus().then((v) => {
+        if (!alive) return;
+        setModel(v.state);
+        setModelError(v.error ?? null);
+        if (v.state === "loading") timer = window.setTimeout(poll, 3000);
+      }, () => {});
+    poll();
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [canRecord]);
 
   const setPhase = (p: RecPhase) => {
     setPhaseState(p);
@@ -261,13 +281,26 @@ export function Recorder({
           {phase === "transcribing" && (
             <>
               <strong>Распознаю речь…</strong>
-              <span className="muted">Локально, модель {voice?.model}</span>
+              <span className="muted">
+                {model === "loading"
+                  ? "Первый раз — дожидаюсь загрузки модели распознавания, это может занять несколько минут"
+                  : `Локально, модель ${voice?.model}`}
+              </span>
             </>
           )}
           {phase === "idle" && canRecord && (
             <>
               <strong>{idleTitle}</strong>
               <span className="muted">{idleHint}</span>
+              {model === "loading" && (
+                <span className="muted small model-note">
+                  <Icon name="loader" size={12} /> Готовлю распознавание речи — один раз скачивается модель (~500 МБ). Записать
+                  можно уже сейчас.
+                </span>
+              )}
+              {model === "error" && modelError && (
+                <span className="warn-text">Модель распознавания не загрузилась: {modelError}</span>
+              )}
             </>
           )}
           {phase === "idle" && !canRecord && (

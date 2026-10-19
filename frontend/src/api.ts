@@ -181,6 +181,8 @@ export interface VoiceStatus {
   available: boolean;
   model: string;
   language: string;
+  state?: "idle" | "loading" | "ready" | "error";
+  error?: string | null;
 }
 
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {

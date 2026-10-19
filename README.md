@@ -49,6 +49,12 @@
 То же в строке ввода текстом: `Отчёт 1.5ч до пятницы @Работа #срочно` (проект из нескольких
 слов — `@"Клиент Х"`).
 
+## Установка (для всех)
+
+Скачайте приложение со страницы [Releases](https://github.com/k1r14-py/Planer/releases/latest):
+`.dmg` для Mac (Apple или Intel), `.exe` для Windows. Подробности — в [docs/INSTALL.md](docs/INSTALL.md)
+и в описании каждого релиза. Ниже — запуск из исходников для разработки.
+
 ## Обновления
 
 В правом верхнем углу приложения — номер версии. Нажмите на него → «Проверить обновления».
@@ -128,3 +134,22 @@ cd backend && ../.venv/bin/python -m pytest                    # тесты
 - `frontend/` — React + TypeScript + Vite, без UI-библиотек. Все цвета, радиусы и тени —
   CSS-переменные в начале `frontend/src/styles.css`, так что стиль легко подменить под внешний
   UI-кит.
+
+## Приложение (desktop/)
+
+Electron-оболочка: окно, иконка в строке меню / трее, глобальная горячая клавиша диктовки, автозапуск.
+Внутри — `runtime/`: автономный Python 3.12 (python-build-standalone через `uv`) с зависимостями и код
+Planer. При первом запуске среда копируется в папку пользователя (`~/Library/Application Support/Planer`,
+`%APPDATA%\Planer`), оттуда её обновляет кнопка «Обновить»; данные — в `data/` рядом.
+
+```bash
+cd frontend && npm ci && npm run build
+cd ../desktop && npm ci
+node scripts/prepare-runtime.mjs     # собрать runtime/ (нужен uv)
+npm start                            # запустить оболочку
+npx electron-builder --mac dmg       # или --win nsis, --linux dir
+```
+
+Релизы собирает `.github/workflows/release.yml` на машинах GitHub (macOS arm64 и x64, Windows x64).
+Приложение не подписано сертификатом Apple / Microsoft, поэтому при первом запуске система
+просит подтверждение (см. docs/INSTALL.md).

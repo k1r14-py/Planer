@@ -1,13 +1,17 @@
 """HTTP API планера + раздача собранного фронтенда."""
 
+import hmac
 import logging
+import os
+import signal
 import sqlite3
+import threading
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -29,6 +33,8 @@ Status = Literal["todo", "done", "skipped", "moved"]
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_db()
+    if os.environ.get("PLANER_PRELOAD_WHISPER") == "1":
+        speech.preload_in_background()
     yield
 
 
@@ -885,6 +891,16 @@ def health():
     return {"ok": True, "app": "planer", "version": RUNNING_VERSION}
 
 
+@app.post("/api/admin/shutdown")
+def shutdown(x_planer_token: str | None = Header(default=None)):
+    """Остановка сервера оболочкой приложения при выходе. Только с токеном, который она передала при запуске."""
+    token = os.environ.get("PLANER_CONTROL_TOKEN")
+    if not token or not x_planer_token or not hmac.compare_digest(token, x_planer_token):
+        raise HTTPException(403, "Нет доступа")
+    threading.Timer(0.3, lambda: os.kill(os.getpid(), signal.SIGTERM)).start()
+    return {"ok": True}
+
+
 # ---------- обновления ----------
 
 
@@ -918,6 +934,8 @@ def voice_status():
         "available": speech.available(),
         "model": speech.MODEL_NAME,
         "language": speech.LANGUAGE,
+        "state": speech.state["state"],
+        "error": speech.state["error"],
     }
 
 

@@ -271,7 +271,10 @@ def refresh_mac_launcher(root: Path) -> None:
     template = root / "mac" / "launcher.sh"
     if not exe.exists() or not template.exists():
         return
-    old = exe.read_text()
+    raw = exe.read_bytes()
+    if not raw.startswith(b"#!"):
+        return  # это не наш скрипт-лаунчер, а настоящее приложение (сборка Electron) — не трогаем
+    old = raw.decode("utf-8", "replace")
     port = re.search(r'DEFAULT_PORT="(\d+)"', old) or re.search(r'PORT="(\d+)"', old)
     model = re.search(r"PLANER_WHISPER_MODEL:-([^}]+)\}", old)
     text = (
