@@ -57,7 +57,7 @@ if ! .venv/bin/pip install -q -r backend/requirements-voice.txt; then
 fi
 
 if [ "$VOICE" = 1 ] && [ -z "${PLANER_SKIP_MODEL:-}" ]; then
-  say "Скачиваю модель Whisper «$MODEL» (один раз, дальше работает офлайн)"
+  say "Скачиваю модель Whisper «${MODEL}» (один раз, дальше работает офлайн)"
   .venv/bin/python -c "from faster_whisper import WhisperModel; WhisperModel('$MODEL', device='cpu', compute_type='int8')" ||
     echo "  ⚠ модель не скачалась — она подтянется при первой записи"
 fi
