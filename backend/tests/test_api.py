@@ -113,7 +113,10 @@ def test_transcribe_parses_text(client, monkeypatch):
     from planer import speech
 
     monkeypatch.setattr(speech, "available", lambda: True)
-    monkeypatch.setattr(speech, "transcribe", lambda data, suffix: "Купить хлеб. Подзадача батон")
+    monkeypatch.setattr(
+        speech, "transcribe",
+        lambda data: {"text": "Купить хлеб. Подзадача батон", "duration": 2.0, "peak": 0.4},
+    )
     r = client.post("/api/voice/transcribe", files={"audio": ("rec.webm", b"fake", "audio/webm")})
     assert r.status_code == 200, r.text
     assert r.json()["items"][0]["children"][0]["title"] == "Батон"
@@ -134,7 +137,7 @@ def test_health(client):
 def test_transcribe_error_is_explained(client, monkeypatch):
     from planer import speech
 
-    def boom(data, suffix):
+    def boom(data):
         raise RuntimeError("модель не найдена")
 
     monkeypatch.setattr(speech, "available", lambda: True)

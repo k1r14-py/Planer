@@ -100,7 +100,11 @@ export const api = {
     const fd = new FormData();
     const ext = blob.type.includes("ogg") ? "ogg" : blob.type.includes("mp4") ? "m4a" : "webm";
     fd.append("audio", blob, `rec.${ext}`);
-    return request<{ text: string; items: DraftItem[] }>("POST", "/api/voice/transcribe", fd);
+    return request<{ text: string; items: DraftItem[]; duration: number; peak: number }>(
+      "POST",
+      "/api/voice/transcribe",
+      fd,
+    );
   },
   parse: (text: string) => request<{ items: DraftItem[] }>("POST", "/api/voice/parse", { text }),
 };

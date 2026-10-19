@@ -16,7 +16,8 @@ from . import speech
 from .db import init_db, tx
 from .dictation import parse_dictation
 
-log = logging.getLogger("planer")
+# дочерний логгер uvicorn — сообщения попадают в тот же лог (Planer.log)
+log = logging.getLogger("uvicorn.error.planer")
 
 Status = Literal["todo", "done", "skipped", "moved"]
 
@@ -424,14 +425,14 @@ async def voice_transcribe(audio: UploadFile = File(...)):
     data = await audio.read()
     if not data:
         raise HTTPException(400, "Пустая запись")
-    suffix = Path(audio.filename or "rec.webm").suffix or ".webm"
     try:
-        text = await run_in_threadpool(speech.transcribe, data, suffix)
+        result = await run_in_threadpool(speech.transcribe, data)
     except Exception as e:
         # полный traceback — в лог, причину — в интерфейс
         log.exception("Ошибка распознавания")
         raise HTTPException(500, f"Ошибка распознавания: {type(e).__name__}: {e}")
-    return {"text": text, "items": parse_dictation(text)}
+    log.info("Распознано %.1f с, пик %.3f: %r", result["duration"], result["peak"], result["text"])
+    return {**result, "items": parse_dictation(result["text"])}
 
 
 @app.post("/api/voice/parse")

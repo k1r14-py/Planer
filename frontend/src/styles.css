@@ -1078,6 +1078,66 @@ kbd {
   font-size: 0.86em;
 }
 
+.mic-select {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-2);
+}
+
+.mic-select select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92em;
+}
+
+.mic-select select:focus {
+  border-color: var(--accent);
+  outline: 0;
+}
+
+.mic-select .muted {
+  flex-basis: 100%;
+  padding-left: 24px;
+}
+
+.level {
+  width: 100%;
+  max-width: 260px;
+  height: 6px;
+  margin: 4px 0 2px;
+  border-radius: 99px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.level-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--success);
+  transition: width 0.08s linear;
+}
+
+.warn-text {
+  font-size: 0.86em;
+  color: var(--warn);
+}
+
+.notice {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--text);
+  font-size: 0.92em;
+}
+
 .field-label {
   font-size: 0.8em;
   font-weight: 600;
