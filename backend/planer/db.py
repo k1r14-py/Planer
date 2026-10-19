@@ -73,7 +73,18 @@ MIGRATIONS = [
     CREATE INDEX IF NOT EXISTS idx_tasks_deadline ON tasks(deadline);
     CREATE INDEX IF NOT EXISTS idx_task_tags_tag ON task_tags(tag);
     """,
+    # 2: проекты, созданные через «@Проект», получали один цвет по умолчанию — раскрашиваем по кругу
+    """
+    UPDATE projects SET color = CASE (
+        (SELECT COUNT(*) FROM projects p2 WHERE p2.id < projects.id) % 8)
+        WHEN 0 THEN '#6d5efc' WHEN 1 THEN '#16a36a' WHEN 2 THEN '#e5484d' WHEN 3 THEN '#d68a00'
+        WHEN 4 THEN '#0091ff' WHEN 5 THEN '#d6409f' WHEN 6 THEN '#12a594' ELSE '#8e8c99' END
+    WHERE color = '#6d5efc'
+    """,
 ]
+
+# те же цвета, что PROJECT_COLORS во фронтенде
+PROJECT_COLORS = ["#6d5efc", "#16a36a", "#e5484d", "#d68a00", "#0091ff", "#d6409f", "#12a594", "#8e8c99"]
 
 
 def init_db() -> None:

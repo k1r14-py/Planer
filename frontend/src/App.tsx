@@ -3,7 +3,7 @@ import type { Day, VoiceStatus } from "./api";
 import { api } from "./api";
 import { DayView } from "./components/DayView";
 import { DictationDialog } from "./components/DictationDialog";
-import { HistoryView } from "./components/HistoryView";
+import { DashboardView } from "./components/dashboard/DashboardView";
 import { Icon } from "./components/Icon";
 import { PlanFactView } from "./components/PlanFactView";
 import { TasksView } from "./components/TasksView";
@@ -11,7 +11,7 @@ import { UpdateButton } from "./components/UpdateButton";
 import { useProjects } from "./projects";
 import { formatDayTitle, isoDay, relativeLabel, shiftDay } from "./utils";
 
-type Tab = "day" | "planfact" | "tasks" | "history";
+type Tab = "day" | "planfact" | "tasks" | "dashboard";
 type Theme = "light" | "dark";
 
 function storedTheme(): Theme {
@@ -123,7 +123,7 @@ export default function App() {
               ["day", "День", "list"],
               ["planfact", "План / Факт", "columns"],
               ["tasks", "Задачи", "search"],
-              ["history", "История", "chart"],
+              ["dashboard", "Дашборд", "chart"],
             ] as const
           ).map(([id, label, icon]) => (
             <button
@@ -180,14 +180,8 @@ export default function App() {
 
         {tab === "tasks" ? (
           <TasksView today={today} onOpenDay={openDay} />
-        ) : tab === "history" ? (
-          <HistoryView
-            today={today}
-            onPick={(d) => {
-              setDay(d);
-              setTab("planfact");
-            }}
-          />
+        ) : tab === "dashboard" ? (
+          <DashboardView today={today} onOpenDay={openDay} />
         ) : !data || data.day !== day ? (
           <div className="muted">Загрузка…</div>
         ) : tab === "day" ? (

@@ -27,9 +27,10 @@ export function relativeLabel(day: string, today: string): string | null {
 }
 
 export function formatMinutes(min: number): string {
-  if (min <= 0) return "0 мин";
-  const h = Math.floor(min / 60);
-  const m = Math.round(min % 60);
+  const total = Math.round(min); // сначала округляем, иначе выйдет «10 ч 60 мин»
+  if (total <= 0) return "0 мин";
+  const h = Math.floor(total / 60);
+  const m = total % 60;
   if (!h) return `${m} мин`;
   return m ? `${h} ч ${m} мин` : `${h} ч`;
 }

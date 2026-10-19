@@ -13,8 +13,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from . import speech, updater
-from .db import init_db, tx
+from . import speech, stats, updater
+from .db import PROJECT_COLORS, init_db, tx
 from .dictation import parse_dictation, parse_line
 from .version import current_version
 
@@ -179,7 +179,9 @@ def project_by_name(conn, name: str) -> int:
     row = conn.execute("SELECT id FROM projects WHERE name = ? COLLATE NOCASE", (name,)).fetchone()
     if row:
         return row["id"]
-    return conn.execute("INSERT INTO projects(name) VALUES (?)", (name,)).lastrowid
+    count = conn.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+    color = PROJECT_COLORS[count % len(PROJECT_COLORS)]
+    return conn.execute("INSERT INTO projects(name, color) VALUES (?, ?)", (name, color)).lastrowid
 
 
 def check_deadline(value: str | None) -> str | None:
@@ -600,6 +602,15 @@ def deadlines(day: str, days: int = 7):
             (until,),
         ).fetchall()
         return attach_tags(conn, [task_dict(r) for r in rows])
+
+
+@app.get("/api/dashboard")
+def dashboard(start: str, end: str, project_id: int | None = None):
+    d0, d1 = date.fromisoformat(check_day(start)), date.fromisoformat(check_day(end))
+    if d1 < d0 or (d1 - d0).days > 366:
+        raise HTTPException(400, "Период — от 1 до 366 дней")
+    with tx() as conn:
+        return stats.dashboard(conn, d0, d1, project_id)
 
 
 # ---------- проекты и теги ----------

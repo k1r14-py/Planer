@@ -238,3 +238,64 @@ def test_bulk_with_meta(client):
     t = by_title(day)
     assert t["X"]["deadline"] == "2026-10-23" and t["X"]["tags"] == ["курс"]
     assert t["x1"]["project_id"] == t["X"]["project_id"]
+
+
+def test_dashboard(client):
+    # прошлый период: 1 из 2 плановых сделана
+    a = by_title(quick(client, "Старая A", day="2026-10-10"))["Старая A"]
+    quick(client, "Старая B", day="2026-10-10")
+    client.patch(f"/api/tasks/{a['id']}", json={"status": "done"})
+    # текущий период 2026-10-14..2026-10-20
+    t1 = by_title(quick(client, "Отчёт 1ч @Работа #срочно", day="2026-10-19"))["Отчёт"]
+    quick(client, "Звонок @Работа", day="2026-10-19")
+    client.post("/api/days/2026-10-19/lock")
+    extra = by_title(quick(client, "Срочное", day="2026-10-19"))["Срочное"]
+    for tid in (t1["id"], extra["id"]):
+        client.patch(f"/api/tasks/{tid}", json={"status": "done"})
+    client.patch(f"/api/tasks/{t1['id']}", json={"actual_sec": 5400})  # 1.5 ч при оценке 1 ч
+    done18 = by_title(quick(client, "Вчера", day="2026-10-18"))["Вчера"]
+    client.patch(f"/api/tasks/{done18['id']}", json={"status": "done"})
+    quick(client, "Просрочено до 15.10", day="2026-10-14")
+
+    r = client.get("/api/dashboard", params={"start": "2026-10-14", "end": "2026-10-20"}).json()
+    k = r["kpi"]
+    assert r["range"]["prev_start"] == "2026-10-07" and r["range"]["days"] == 7
+    assert k["done"] == {"value": 3, "prev": 1}
+    assert k["completion"]["prev"] == 0.5
+    assert k["completion"]["value"] == round(2 / 4, 4)  # Отчёт, Звонок, Вчера, Просрочено — плановые
+    assert k["accuracy"] == {"ratio": 1.5, "tasks": 1}
+    assert k["unplanned_share"] == round(1 / 3, 4)
+    assert k["overdue"] == 1
+    assert len(r["daily"]) == 7
+    day19 = next(d for d in r["daily"] if d["day"] == "2026-10-19")
+    assert (day19["planned"], day19["planned_done"], day19["unplanned_done"]) == (2, 1, 1)
+    assert r["projects"][0]["name"] == "Работа" and r["projects"][0]["done"] == 1
+    assert r["tags"] == [{"tag": "срочно", "done": 1, "total": 1}]
+    assert r["weekdays"][0]["done"] == 2  # понедельник 19.10
+
+    pid = r["projects"][0]["id"]
+    f = client.get("/api/dashboard", params={"start": "2026-10-14", "end": "2026-10-20", "project_id": pid}).json()
+    assert f["kpi"]["done"]["value"] == 1 and f["projects"] == []
+    assert client.get("/api/dashboard", params={"start": "2026-10-20", "end": "2026-10-14"}).status_code == 400
+
+
+def test_projects_get_distinct_colors(client):
+    quick(client, "a @Один")
+    quick(client, "b @Два")
+    colors = [p["color"] for p in client.get("/api/projects").json()]
+    assert len(set(colors)) == 2
+
+
+def test_migration_recolors_default_projects(tmp_path, monkeypatch):
+    import sqlite3
+
+    from planer import db
+
+    monkeypatch.setenv("PLANER_DB", str(tmp_path / "old.db"))
+    db.init_db()
+    with sqlite3.connect(tmp_path / "old.db") as c:
+        c.execute("PRAGMA user_version = 1")
+        c.executemany("INSERT INTO projects(name) VALUES (?)", [("A",), ("B",), ("C",)])
+    db.init_db()
+    with sqlite3.connect(tmp_path / "old.db") as c:
+        assert [r[0] for r in c.execute("SELECT color FROM projects ORDER BY id")] == ["#6d5efc", "#16a36a", "#e5484d"]

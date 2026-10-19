@@ -105,6 +105,32 @@ export interface UpdateStatus {
   current: string;
 }
 
+export interface DashboardDay {
+  day: string;
+  planned: number;
+  planned_done: number;
+  done: number;
+  unplanned_done: number;
+  focus_sec: number;
+}
+
+export interface Dashboard {
+  range: { start: string; end: string; days: number; prev_start: string; prev_end: string };
+  kpi: {
+    completion: { value: number | null; prev: number | null };
+    done: { value: number; prev: number };
+    focus_sec: { value: number; prev: number };
+    unplanned_share: number | null;
+    accuracy: { ratio: number | null; tasks: number };
+    streak: number;
+    overdue: number;
+  };
+  daily: DashboardDay[];
+  projects: { id: number | null; name: string; color: string | null; done: number; total: number; focus_sec: number }[];
+  tags: { tag: string; done: number; total: number }[];
+  weekdays: { weekday: number; planned: number; planned_done: number; done: number }[];
+}
+
 export interface VoiceStatus {
   available: boolean;
   model: string;
@@ -152,6 +178,11 @@ export const api = {
     request<Project>("PATCH", `/api/projects/${id}`, patch),
   deleteProject: (id: number) => request<{ ok: boolean }>("DELETE", `/api/projects/${id}`),
   tags: () => request<TagCount[]>("GET", "/api/tags"),
+  dashboard: (start: string, end: string, projectId?: number) =>
+    request<Dashboard>(
+      "GET",
+      `/api/dashboard?start=${start}&end=${end}${projectId != null ? `&project_id=${projectId}` : ""}`,
+    ),
   history: (start: string, end: string) =>
     request<HistoryRow[]>("GET", `/api/history?start=${start}&end=${end}`),
 
