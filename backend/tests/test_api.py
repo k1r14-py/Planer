@@ -125,3 +125,7 @@ def test_transcribe_unavailable(client, monkeypatch):
     monkeypatch.setattr(speech, "available", lambda: False)
     r = client.post("/api/voice/transcribe", files={"audio": ("rec.webm", b"x", "audio/webm")})
     assert r.status_code == 503
+
+
+def test_health(client):
+    assert client.get("/api/health").json() == {"ok": True}

@@ -1,5 +1,6 @@
 """Локальная транскрипция через faster-whisper. Модель грузится лениво при первом вызове."""
 
+import importlib.util
 import os
 import tempfile
 import threading
@@ -14,11 +15,8 @@ _lock = threading.Lock()
 
 
 def available() -> bool:
-    try:
-        import faster_whisper  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    # find_spec не импортирует пакет: импорт ctranslate2/av на Маке при первом запуске долгий
+    return importlib.util.find_spec("faster_whisper") is not None
 
 
 def _get_model():

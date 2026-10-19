@@ -392,6 +392,14 @@ def timer_stop(task_id: int):
         return load_day(conn, row["day"])
 
 
+# ---------- служебное ----------
+
+
+@app.get("/api/health")
+def health():
+    return {"ok": True}
+
+
 # ---------- голос ----------
 
 
