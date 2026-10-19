@@ -12,9 +12,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from . import speech
+from . import speech, updater
 from .db import init_db, tx
 from .dictation import parse_dictation
+from .version import current_version
 
 # дочерний логгер uvicorn — сообщения попадают в тот же лог (Planer.log)
 log = logging.getLogger("uvicorn.error.planer")
@@ -28,6 +29,10 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Planer", lifespan=lifespan)
+
+# Версия запущенного кода. Читаем один раз: после установки обновления файл VERSION
+# уже новый, а процесс — ещё старый, пока не перезапустится.
+RUNNING_VERSION = current_version()
 
 
 def now_iso() -> str:
@@ -401,7 +406,31 @@ def timer_stop(task_id: int):
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "app": "planer"}
+    return {"ok": True, "app": "planer", "version": RUNNING_VERSION}
+
+
+# ---------- обновления ----------
+
+
+@app.get("/api/update/check")
+def update_check():
+    try:
+        return updater.public(updater.check())
+    except updater.UpdateError as e:
+        raise HTTPException(502, str(e))
+
+
+@app.post("/api/update/apply")
+def update_apply():
+    try:
+        return updater.start()
+    except updater.UpdateError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.get("/api/update/status")
+def update_status():
+    return {**updater.status(), "current": RUNNING_VERSION}
 
 
 # ---------- голос ----------

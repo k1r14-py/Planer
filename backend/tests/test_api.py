@@ -131,7 +131,8 @@ def test_transcribe_unavailable(client, monkeypatch):
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"ok": True, "app": "planer"}
+    body = client.get("/api/health").json()
+    assert body["app"] == "planer" and body["version"]
 
 
 def test_transcribe_error_is_explained(client, monkeypatch):

@@ -300,6 +300,90 @@ kbd {
   cursor: pointer;
 }
 
+/* ---------- обновления ---------- */
+
+.update-wrap {
+  position: relative;
+}
+
+.version-btn {
+  position: relative;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 0.78em;
+  font-variant-numeric: tabular-nums;
+}
+
+.version-btn:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+}
+
+.update-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.update-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  width: min(360px, calc(100vw - 32px));
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.update-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.update-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.update-line.ok {
+  color: var(--success);
+}
+
+.update-notes {
+  max-height: 200px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-family: var(--font);
+  font-size: 0.86em;
+  white-space: pre-wrap;
+}
+
+.update-panel a {
+  color: var(--accent);
+}
+
 /* ---------- навигация по датам ---------- */
 
 .date-nav {

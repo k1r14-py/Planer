@@ -1,0 +1,73 @@
+# Публикует релиз, когда меняется файл VERSION: собирает интерфейс и выкладывает
+# planer-vX.Y.Z.zip (+ .sha256). Его скачивает кнопка «Проверить обновления» в приложении.
+name: Release
+
+on:
+  push:
+    paths: [VERSION]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Версия
+        id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="$(tr -d ' \r\n' < VERSION)"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if gh release view "v$V" >/dev/null 2>&1; then
+            echo "Релиз v$V уже есть — пропускаю"
+            echo "exists=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.v.outputs.exists != '1'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-python@v5
+        if: steps.v.outputs.exists != '1'
+        with:
+          python-version: "3.12"
+
+      - name: Тесты
+        if: steps.v.outputs.exists != '1'
+        run: |
+          sudo apt-get install -y -qq ffmpeg >/dev/null
+          pip install -q -r backend/requirements-dev.txt -r backend/requirements-voice.txt
+          cd backend && python -m pytest -q
+
+      - name: Сборка интерфейса
+        if: steps.v.outputs.exists != '1'
+        run: cd frontend && npm ci && npm run build
+
+      - name: Архив
+        if: steps.v.outputs.exists != '1'
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          mkdir -p out/Planer
+          git archive HEAD | tar -x -C out/Planer
+          cp -r frontend/dist out/Planer/frontend/dist
+          (cd out && zip -qr "../planer-v$V.zip" Planer)
+          sha256sum "planer-v$V.zip" > "planer-v$V.zip.sha256"
+
+      - name: Релиз
+        if: steps.v.outputs.exists != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          # описание — раздел «## V» из CHANGELOG.md
+          awk -v v="## $V" '$0 == v {f=1; next} /^## /{f=0} f' CHANGELOG.md > notes.md
+          gh release create "v$V" "planer-v$V.zip" "planer-v$V.zip.sha256" \
+            --title "Planer $V" --notes-file notes.md --target "$GITHUB_SHA"

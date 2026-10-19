@@ -48,6 +48,24 @@ export interface DraftItem {
   children: DraftItem[];
 }
 
+export interface UpdateInfo {
+  current: string;
+  latest: string;
+  available: boolean;
+  notes: string;
+  published_at: string | null;
+  url: string | null;
+  can_apply: boolean;
+  reason: string;
+}
+
+export interface UpdateStatus {
+  state: "idle" | "downloading" | "installing" | "restarting" | "error";
+  message: string;
+  version: string | null;
+  current: string;
+}
+
 export interface VoiceStatus {
   available: boolean;
   model: string;
@@ -94,6 +112,11 @@ export const api = {
   deleteTask: (id: number) => request<Day>("DELETE", `/api/tasks/${id}`),
   timerStart: (id: number) => request<Day>("POST", `/api/tasks/${id}/timer/start`),
   timerStop: (id: number) => request<Day>("POST", `/api/tasks/${id}/timer/stop`),
+
+  health: () => request<{ ok: boolean; version: string }>("GET", "/api/health"),
+  updateCheck: () => request<UpdateInfo>("GET", "/api/update/check"),
+  updateApply: () => request<UpdateStatus>("POST", "/api/update/apply"),
+  updateStatus: () => request<UpdateStatus>("GET", "/api/update/status"),
 
   voiceStatus: () => request<VoiceStatus>("GET", "/api/voice/status"),
   transcribe: (blob: Blob) => {

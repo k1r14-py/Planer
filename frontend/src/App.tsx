@@ -6,6 +6,7 @@ import { DictationDialog } from "./components/DictationDialog";
 import { HistoryView } from "./components/HistoryView";
 import { Icon } from "./components/Icon";
 import { PlanFactView } from "./components/PlanFactView";
+import { UpdateButton } from "./components/UpdateButton";
 import { formatDayTitle, isoDay, relativeLabel, shiftDay } from "./utils";
 
 type Tab = "day" | "planfact" | "history";
@@ -126,6 +127,7 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <UpdateButton />
         <button
           className="icon-btn"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}

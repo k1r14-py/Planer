@@ -32,8 +32,12 @@ for c in python3.13 python3.12 python3.11 python3.10 python3; do
   fi
 done
 [ -n "$PY" ] || die "Нужен Python 3.10+. Установите: brew install python@3.12   (Homebrew: https://brew.sh)"
-command -v npm >/dev/null 2>&1 || die "Нужен Node.js. Установите: brew install node"
-say "Python: $PY ($("$PY" --version 2>&1)), Node: $(node --version)"
+HAVE_NODE=0
+command -v npm >/dev/null 2>&1 && HAVE_NODE=1
+if [ "$HAVE_NODE" = 0 ] && [ ! -f "$REPO/frontend/dist/index.html" ]; then
+  die "Нужен Node.js, чтобы собрать интерфейс: brew install node  (или скачайте архив релиза — там интерфейс уже собран)"
+fi
+say "Planer $(cat "$REPO/VERSION" 2>/dev/null || echo '?') · Python: $PY ($("$PY" --version 2>&1))"
 
 # ---------- бэкенд ----------
 cd "$REPO"
@@ -64,7 +68,11 @@ fi
 
 # ---------- фронтенд ----------
 say "Собираю интерфейс"
-(cd frontend && npm install --no-audit --no-fund --loglevel=error && npm run build >/dev/null)
+if [ "$HAVE_NODE" = 1 ]; then
+  (cd frontend && npm install --no-audit --no-fund --loglevel=error && npm run build >/dev/null)
+else
+  echo "  Node.js не найден — использую уже собранный интерфейс из архива"
+fi
 
 # ---------- останавливаем старый сервер, чтобы подхватился новый код ----------
 pkill -f "uvicorn planer.app:app --host 127.0.0.1" 2>/dev/null || true
