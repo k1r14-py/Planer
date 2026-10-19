@@ -129,3 +129,16 @@ def test_transcribe_unavailable(client, monkeypatch):
 
 def test_health(client):
     assert client.get("/api/health").json() == {"ok": True, "app": "planer"}
+
+
+def test_transcribe_error_is_explained(client, monkeypatch):
+    from planer import speech
+
+    def boom(data, suffix):
+        raise RuntimeError("модель не найдена")
+
+    monkeypatch.setattr(speech, "available", lambda: True)
+    monkeypatch.setattr(speech, "transcribe", boom)
+    r = client.post("/api/voice/transcribe", files={"audio": ("rec.webm", b"x", "audio/webm")})
+    assert r.status_code == 500
+    assert r.json()["detail"] == "Ошибка распознавания: RuntimeError: модель не найдена"

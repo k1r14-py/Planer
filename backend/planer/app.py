@@ -1,5 +1,6 @@
 """HTTP API планера + раздача собранного фронтенда."""
 
+import logging
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -14,6 +15,8 @@ from starlette.concurrency import run_in_threadpool
 from . import speech
 from .db import init_db, tx
 from .dictation import parse_dictation
+
+log = logging.getLogger("planer")
 
 Status = Literal["todo", "done", "skipped", "moved"]
 
@@ -422,7 +425,12 @@ async def voice_transcribe(audio: UploadFile = File(...)):
     if not data:
         raise HTTPException(400, "Пустая запись")
     suffix = Path(audio.filename or "rec.webm").suffix or ".webm"
-    text = await run_in_threadpool(speech.transcribe, data, suffix)
+    try:
+        text = await run_in_threadpool(speech.transcribe, data, suffix)
+    except Exception as e:
+        # полный traceback — в лог, причину — в интерфейс
+        log.exception("Ошибка распознавания")
+        raise HTTPException(500, f"Ошибка распознавания: {type(e).__name__}: {e}")
     return {"text": text, "items": parse_dictation(text)}
 
 
