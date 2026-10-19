@@ -1,0 +1,2 @@
+# Локальное распознавание речи (Whisper через CTranslate2)
+faster-whisper>=1.0
