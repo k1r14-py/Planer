@@ -177,6 +177,13 @@ export interface ReviewProposal {
   note: string;
 }
 
+export interface LinkRule {
+  id: number;
+  keywords: string[];
+  url: string;
+  label: string;
+}
+
 export interface VoiceStatus {
   available: boolean;
   model: string;
@@ -273,6 +280,11 @@ export const api = {
     request<{ steps: { title: string; estimate_min: number | null }[] }>("POST", `/api/ai/breakdown/${taskId}`),
   aiReview: (day: string, text: string) => request<ReviewProposal>("POST", "/api/ai/review", { day, text }),
   aiReviewApply: (day: string, p: ReviewProposal) => request<Day>("POST", "/api/ai/review/apply", { day, ...p }),
+
+  links: () => request<LinkRule[]>("GET", "/api/links"),
+  createLink: (r: Omit<LinkRule, "id">) => request<LinkRule>("POST", "/api/links", r),
+  updateLink: (id: number, r: Omit<LinkRule, "id">) => request<LinkRule>("PUT", `/api/links/${id}`, r),
+  deleteLink: (id: number) => request<{ ok: boolean }>("DELETE", `/api/links/${id}`),
 
   voiceStatus: () => request<VoiceStatus>("GET", "/api/voice/status"),
   transcribe: (blob: Blob) => {

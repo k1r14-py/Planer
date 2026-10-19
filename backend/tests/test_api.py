@@ -321,3 +321,19 @@ def test_shutdown_requires_token(client, monkeypatch):
 def test_voice_status_has_state(client):
     s = client.get("/api/voice/status").json()
     assert s["state"] in ("idle", "loading", "ready", "error")
+
+
+def test_link_rules_crud_and_validation(client):
+    r = client.post("/api/links", json={"keywords": ["НОК", " Лонгрид ", "нок", "#jira"], "url": "https://jira.example.com/browse/NOK-1", "label": "Лонгрид НОК"})
+    assert r.status_code == 200, r.text
+    rule = r.json()
+    assert rule["keywords"] == ["нок", "лонгрид", "jira"]
+    assert client.post("/api/links", json={"keywords": ["x"], "url": "javascript:alert(1)"}).status_code == 400
+    assert client.post("/api/links", json={"keywords": ["x"], "url": "file:///etc/passwd"}).status_code == 400
+    assert client.post("/api/links", json={"keywords": ["  "], "url": "https://a.b"}).status_code == 400
+    upd = client.put(f"/api/links/{rule['id']}", json={"keywords": ["нок", "скринкаст"], "url": "https://jira.example.com/browse/NOK-2"}).json()
+    assert upd["keywords"] == ["нок", "скринкаст"] and upd["label"] == ""
+    assert [x["id"] for x in client.get("/api/links").json()] == [rule["id"]]
+    client.delete(f"/api/links/{rule['id']}")
+    assert client.get("/api/links").json() == []
+    assert client.put("/api/links/999", json={"keywords": ["a"], "url": "https://a.b"}).status_code == 404

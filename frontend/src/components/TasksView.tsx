@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FoundTask, SearchQuery, SearchResult, Status, TagCount } from "../api";
 import { api } from "../api";
+import { matchLinks, useLinks } from "../links";
 import { ProjectChip, useProjects } from "../projects";
 import { deadlineInfo, formatDayTitle, formatMinutes, isoDay, percent, shiftDay } from "../utils";
 import { Icon } from "./Icon";
+import { TaskLinks } from "./TaskLinks";
 
 type Period = "week" | "month" | "prev-month" | "30" | "all" | "custom";
 type StatusFilter = "" | "open" | Status;
@@ -223,6 +225,8 @@ function FoundRow({
   nested?: boolean;
 }) {
   const project = task.project_id != null ? byId.get(task.project_id) : undefined;
+  const { rules } = useLinks();
+  const links = matchLinks(rules, `${task.title} ${project?.name ?? ""} ${task.tags.join(" ")}`);
   const kidProject = (k: FoundTask) => (k.project_id === task.project_id ? { ...k, project_id: null } : k);
   return (
     <li>
@@ -230,7 +234,7 @@ function FoundRow({
         <span className={`dot ${task.status}`} />
         <span className="found-title">
           {task.parent_title && !nested && <span className="muted small">{task.parent_title} → </span>}
-          {task.title}
+          {task.title} <TaskLinks matched={links} />
         </span>
         <span className="found-meta">
           {project && <ProjectChip project={project} />}

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import type { Day, Task } from "../api";
 import { api } from "../api";
+import { matchLinks, useLinks } from "../links";
 import { ProjectChip, useProjects } from "../projects";
 import { deadlineInfo, formatClock, formatMinutes, liveSeconds } from "../utils";
 import { Icon } from "./Icon";
 import { TaskEditor } from "./TaskEditor";
+import { TaskLinks } from "./TaskLinks";
 
 export interface TaskCtx {
   children: Map<number | null, Task[]>;
@@ -56,6 +58,9 @@ function TaskItem({
   const { byId } = useProjects();
   const project = task.project_id != null && task.project_id !== parentProject ? byId.get(task.project_id) : undefined;
   const deadline = task.deadline ? deadlineInfo(task.deadline, ctx.day) : null;
+  const { rules } = useLinks();
+  const projectName = task.project_id != null ? byId.get(task.project_id)?.name ?? "" : "";
+  const links = matchLinks(rules, `${task.title} ${projectName} ${task.tags.join(" ")}`);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [collapsed, setCollapsed] = useState(false);
@@ -162,6 +167,7 @@ function TaskItem({
               {task.title}
             </span>
           )}
+          {!editing && <TaskLinks matched={links} />}
           <span className="badges">
             {depth === 0 && !task.planned && <span className="badge accent">вне плана</span>}
             {task.moved_from && <span className="badge">перенесено</span>}

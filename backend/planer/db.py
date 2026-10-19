@@ -88,6 +88,17 @@ MIGRATIONS = [
         value TEXT NOT NULL
     );
     """,
+    # 4: ссылки по ключевым словам — у задачи, где встречаются все слова правила, появляется ссылка
+    """
+    CREATE TABLE IF NOT EXISTS link_rules (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        keywords   TEXT NOT NULL,              -- JSON-список слов
+        url        TEXT NOT NULL,
+        label      TEXT NOT NULL DEFAULT '',
+        position   REAL NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    );
+    """,
 ]
 
 # те же цвета, что PROJECT_COLORS во фронтенде

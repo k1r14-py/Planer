@@ -40,6 +40,7 @@ const PATHS: Record<string, string> = {
   sparkles: "M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8zM5 2l.6 1.4L7 4l-1.4.6L5 6l-.6-1.4L3 4l1.4-.6z",
   steps: "M4 6h4v4H4zM10 8h10M4 14h4v4H4zM10 16h10",
   review: "M4 4h16v12H8l-4 4zM8 9h8M8 12h5",
+  link: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
 };
 
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {

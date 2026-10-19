@@ -6,10 +6,12 @@ import { DictationDialog } from "./components/DictationDialog";
 import { DashboardView } from "./components/dashboard/DashboardView";
 import { Icon } from "./components/Icon";
 import { AISettingsDialog } from "./components/AISettingsDialog";
+import { LinkSettingsDialog } from "./components/LinkSettingsDialog";
 import { PlanFactView } from "./components/PlanFactView";
 import { TasksView } from "./components/TasksView";
 import { UpdateButton } from "./components/UpdateButton";
 import { AIStateProvider, useAI } from "./ai";
+import { LinksProvider } from "./links";
 import { useProjects } from "./projects";
 import { formatDayTitle, isoDay, relativeLabel, shiftDay } from "./utils";
 
@@ -47,6 +49,8 @@ export default function App() {
   const [voice, setVoice] = useState<VoiceStatus | null>(null);
   const [dictation, setDictation] = useState<null | { record: boolean }>(null);
   const [aiOpen, setAiOpen] = useState(false);
+  const [linksOpen, setLinksOpen] = useState(false);
+  const openLinks = useCallback(() => setLinksOpen(true), []);
   const [hotkey, setHotkey] = useState<string | null>(null);
 
   // приложение: глобальная горячая клавиша открывает диктовку из любой программы
@@ -141,6 +145,7 @@ export default function App() {
 
   return (
     <AIStateProvider openSettings={() => setAiOpen(true)}>
+    <LinksProvider openSettings={openLinks}>
     <div className="app">
       <header className="topbar">
         <div className="brand">
@@ -169,6 +174,9 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <button className="icon-btn" onClick={openLinks} title="Ссылки по ключевым словам" aria-label="Ссылки по ключевым словам">
+          <Icon name="link" />
+        </button>
         <AIButton />
         <UpdateButton />
         <button
@@ -258,7 +266,9 @@ export default function App() {
       )}
 
       {aiOpen && <AISettingsDialog onClose={() => setAiOpen(false)} />}
+      {linksOpen && <LinkSettingsDialog onClose={() => setLinksOpen(false)} />}
     </div>
+    </LinksProvider>
     </AIStateProvider>
   );
 }

@@ -1,8 +1,10 @@
 """HTTP API планера + раздача собранного фронтенда."""
 
 import hmac
+import json
 import logging
 import os
+import re
 import signal
 import sqlite3
 import threading
@@ -881,6 +883,72 @@ def ai_review_apply(body: AIReviewApply):
             note = f"{old}\n\n{body.note.strip()}" if old else body.note.strip()
             conn.execute("UPDATE days SET note = ? WHERE day = ?", (note, day))
         return load_day(conn, day)
+
+
+# ---------- ссылки по ключевым словам ----------
+
+
+class LinkRuleIn(BaseModel):
+    keywords: list[str] = Field(min_length=1, max_length=10)
+    url: str = Field(min_length=1, max_length=2000)
+    label: str = Field(default="", max_length=120)
+
+
+def _clean_rule(body: LinkRuleIn) -> tuple[list[str], str, str]:
+    words: list[str] = []
+    for w in body.keywords:
+        w = " ".join(w.replace("#", " ").split()).lower()[:60]
+        if w and w not in words:
+            words.append(w)
+    if not words:
+        raise HTTPException(400, "Нужно хотя бы одно ключевое слово")
+    url = body.url.strip()
+    # только веб-ссылки: через «ссылку» нельзя открыть файл или запустить программу
+    if not re.match(r"^https?://[^\s/$.?#][^\s]*$", url, re.IGNORECASE):
+        raise HTTPException(400, "Ссылка должна начинаться с http:// или https://")
+    return words, url, body.label.strip()
+
+
+def _rule_dict(row) -> dict:
+    return {"id": row["id"], "keywords": json.loads(row["keywords"]), "url": row["url"], "label": row["label"]}
+
+
+@app.get("/api/links")
+def list_links():
+    with tx() as conn:
+        return [_rule_dict(r) for r in conn.execute("SELECT * FROM link_rules ORDER BY position, id")]
+
+
+@app.post("/api/links")
+def create_link(body: LinkRuleIn):
+    words, url, label = _clean_rule(body)
+    with tx() as conn:
+        pos = conn.execute("SELECT COALESCE(MAX(position), 0) + 1 FROM link_rules").fetchone()[0]
+        rid = conn.execute(
+            "INSERT INTO link_rules(keywords, url, label, position) VALUES (?, ?, ?, ?)",
+            (json.dumps(words, ensure_ascii=False), url, label, pos),
+        ).lastrowid
+        return _rule_dict(conn.execute("SELECT * FROM link_rules WHERE id = ?", (rid,)).fetchone())
+
+
+@app.put("/api/links/{rule_id}")
+def update_link(rule_id: int, body: LinkRuleIn):
+    words, url, label = _clean_rule(body)
+    with tx() as conn:
+        cur = conn.execute(
+            "UPDATE link_rules SET keywords = ?, url = ?, label = ? WHERE id = ?",
+            (json.dumps(words, ensure_ascii=False), url, label, rule_id),
+        )
+        if not cur.rowcount:
+            raise HTTPException(404, "Правило не найдено")
+        return _rule_dict(conn.execute("SELECT * FROM link_rules WHERE id = ?", (rule_id,)).fetchone())
+
+
+@app.delete("/api/links/{rule_id}")
+def delete_link(rule_id: int):
+    with tx() as conn:
+        conn.execute("DELETE FROM link_rules WHERE id = ?", (rule_id,))
+        return {"ok": True}
 
 
 # ---------- служебное ----------
