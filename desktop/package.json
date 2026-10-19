@@ -96,5 +96,6 @@
     "type": "git",
     "url": "https://github.com/k1r14-py/Planer.git"
   },
-  "homepage": "https://github.com/k1r14-py/Planer"
+  "homepage": "https://github.com/k1r14-py/Planer",
+  "license": "MIT"
 }
