@@ -196,28 +196,30 @@ function TaskItem({
           </span>
         </div>
 
-        {task.estimate_min != null && (
-          <button className="chip" onClick={() => setDetails(true)} title="Оценка">
-            <Icon name="hourglass" /> {formatMinutes(task.estimate_min)}
-          </button>
-        )}
+        <span className="task-meta">
+          {task.estimate_min != null && (
+            <button className="chip" onClick={() => setDetails(true)} title="Оценка">
+              <Icon name="hourglass" /> {formatMinutes(task.estimate_min)}
+            </button>
+          )}
 
-        {(spent > 0 || running) && (
-          <span className={`chip mono ${running ? "live" : ""}`} title="Затрачено">
-            {formatClock(spent)}
-          </span>
-        )}
+          {(spent > 0 || running) && (
+            <span className={`chip mono ${running ? "live" : ""}`} title="Затрачено">
+              {formatClock(spent)}
+            </span>
+          )}
 
-        {!done && !inactive && (
-          <button
-            className={`icon-btn timer ${running ? "on" : ""}`}
-            onClick={() => ctx.run(running ? api.timerStop(task.id) : api.timerStart(task.id))}
-            aria-label={running ? "Остановить таймер" : "Запустить таймер"}
-            title={running ? "Стоп" : "Засечь время"}
-          >
-            <Icon name={running ? "pause" : "play"} />
-          </button>
-        )}
+          {!done && !inactive && (
+            <button
+              className={`icon-btn timer ${running ? "on" : ""}`}
+              onClick={() => ctx.run(running ? api.timerStop(task.id) : api.timerStart(task.id))}
+              aria-label={running ? "Остановить таймер" : "Запустить таймер"}
+              title={running ? "Стоп" : "Засечь время"}
+            >
+              <Icon name={running ? "pause" : "play"} />
+            </button>
+          )}
+        </span>
 
         <div className="menu-wrap" ref={menuRef}>
           <button className="icon-btn" onClick={() => setMenu(!menu)} aria-label="Действия">

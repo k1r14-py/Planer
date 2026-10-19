@@ -145,7 +145,7 @@ kbd {
   align-items: center;
   gap: 16px;
   padding: 20px 0;
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
   backdrop-filter: blur(12px);
 }
 
@@ -2861,4 +2861,66 @@ i.heat-cell.lvl-5 {
 
 .rule-list li.hit .kw {
   background: var(--surface);
+}
+
+/* шапка на телефоне: логотип и кнопки — первой строкой, вкладки — второй во всю ширину */
+@media (max-width: 640px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px 8px;
+    padding: 14px 0 10px;
+  }
+
+  .brand {
+    margin-right: auto;
+  }
+
+  .tabs {
+    order: 3;
+    width: 100%;
+    margin: 0;
+  }
+
+  .tab {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .version-btn {
+    padding: 4px 7px;
+  }
+}
+
+/* оценка, таймер и время задачи — группой справа; на телефоне уходят под название */
+.task-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .task-row {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .task-main {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .menu-wrap {
+    order: 4;
+  }
+
+  .task-meta {
+    order: 5;
+    flex-basis: 100%;
+    padding-left: 68px; /* под началом названия */
+  }
+
+  .task-meta:empty {
+    display: none;
+  }
 }
