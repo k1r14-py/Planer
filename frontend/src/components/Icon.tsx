@@ -37,6 +37,9 @@ const PATHS: Record<string, string> = {
   indent: "M3 6h18M9 12h12M9 18h12M3 10l3 2-3 2",
   outdent: "M3 6h18M9 12h12M9 18h12M6 10l-3 2 3 2",
   target: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z",
+  sparkles: "M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8zM5 2l.6 1.4L7 4l-1.4.6L5 6l-.6-1.4L3 4l1.4-.6z",
+  steps: "M4 6h4v4H4zM10 8h10M4 14h4v4H4zM10 16h10",
+  review: "M4 4h16v12H8l-4 4zM8 9h8M8 12h5",
 };
 
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {

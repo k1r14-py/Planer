@@ -5,9 +5,11 @@ import { DayView } from "./components/DayView";
 import { DictationDialog } from "./components/DictationDialog";
 import { DashboardView } from "./components/dashboard/DashboardView";
 import { Icon } from "./components/Icon";
+import { AISettingsDialog } from "./components/AISettingsDialog";
 import { PlanFactView } from "./components/PlanFactView";
 import { TasksView } from "./components/TasksView";
 import { UpdateButton } from "./components/UpdateButton";
+import { AIStateProvider, useAI } from "./ai";
 import { useProjects } from "./projects";
 import { formatDayTitle, isoDay, relativeLabel, shiftDay } from "./utils";
 
@@ -33,6 +35,7 @@ export default function App() {
   const [now, setNow] = useState(Date.now());
   const [voice, setVoice] = useState<VoiceStatus | null>(null);
   const [dictation, setDictation] = useState<null | { record: boolean }>(null);
+  const [aiOpen, setAiOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(storedTheme);
   const { reload: reloadProjects } = useProjects();
 
@@ -109,6 +112,7 @@ export default function App() {
   const rel = relativeLabel(day, today);
 
   return (
+    <AIStateProvider openSettings={() => setAiOpen(true)}>
     <div className="app">
       <header className="topbar">
         <div className="brand">
@@ -137,6 +141,7 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <AIButton />
         <UpdateButton />
         <button
           className="icon-btn"
@@ -194,7 +199,7 @@ export default function App() {
             onOpenDay={openDay}
           />
         ) : (
-          <PlanFactView data={data} now={now} onChange={setData} />
+          <PlanFactView data={data} now={now} voice={voice} onChange={setData} />
         )}
       </main>
 
@@ -212,9 +217,27 @@ export default function App() {
           onAdded={(d) => {
             setData(d);
             setTab("day");
+            reloadProjects();
           }}
         />
       )}
+
+      {aiOpen && <AISettingsDialog onClose={() => setAiOpen(false)} />}
     </div>
+    </AIStateProvider>
+  );
+}
+
+/** Кнопка ИИ в шапке: точка показывает, подключён ли помощник. */
+function AIButton() {
+  const ai = useAI();
+  return (
+    <button
+      className={`ai-btn ${ai.ready ? "on" : ""}`}
+      onClick={ai.openSettings}
+      title={ai.ready ? `ИИ подключён: ${ai.settings?.model}` : "Подключить ИИ-помощника"}
+    >
+      <Icon name="sparkles" /> <span>ИИ</span>
+    </button>
   );
 }

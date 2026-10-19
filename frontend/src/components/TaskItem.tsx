@@ -11,6 +11,7 @@ export interface TaskCtx {
   now: number;
   day: string; // день, который сейчас открыт, — от него считаются сроки
   run: (p: Promise<Day | unknown>) => void;
+  onBreakdown: (task: Task) => void;
 }
 
 // id перетаскиваемой задачи (HTML5 DnD не даёт прочитать данные в dragover)
@@ -227,6 +228,11 @@ function TaskItem({
               <button onClick={() => setDetails(true)}>
                 <Icon name="sliders" /> Срок, проект, теги, оценка…
               </button>
+              {task.status === "todo" && (
+                <button onClick={() => ctx.onBreakdown(task)}>
+                  <Icon name="sparkles" /> Разбить на шаги (ИИ)
+                </button>
+              )}
               {task.status === "todo" && (
                 <button onClick={() => ctx.run(api.patchTask(task.id, { status: "skipped" }))}>
                   <Icon name="skip" /> Пропустить

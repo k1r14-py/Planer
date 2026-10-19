@@ -131,6 +131,52 @@ export interface Dashboard {
   weekdays: { weekday: number; planned: number; planned_done: number; done: number }[];
 }
 
+export interface AIProviderPreset {
+  id: string;
+  name: string;
+  hint: string;
+  base_url: string;
+  model: string;
+  needs_key: boolean;
+  key_url: string | null;
+}
+
+export interface AISettings {
+  provider: string;
+  base_url: string;
+  model: string;
+  has_key: boolean;
+  key_hint: string;
+  configured: boolean;
+}
+
+export interface AISettingsDraft {
+  provider?: string;
+  base_url?: string;
+  model?: string;
+  api_key?: string;
+}
+
+export interface OllamaStatus {
+  platform: string;
+  supported: boolean;
+  installed: boolean;
+  running: boolean;
+  models: string[];
+  ram_gb: number | null;
+  free_disk_gb: number;
+  recommended: { model: string | null; size: string | null; ok: boolean; note: string };
+  job: { state: "idle" | "starting" | "downloading" | "installing" | "pulling" | "done" | "error"; message: string; progress: number | null; model: string | null };
+}
+
+export interface ReviewProposal {
+  done: number[];
+  skipped: number[];
+  carry: number[];
+  new_tasks: { title: string; done: boolean }[];
+  note: string;
+}
+
 export interface VoiceStatus {
   available: boolean;
   model: string;
@@ -210,6 +256,21 @@ export const api = {
   updateCheck: () => request<UpdateInfo>("GET", "/api/update/check"),
   updateApply: () => request<UpdateStatus>("POST", "/api/update/apply"),
   updateStatus: () => request<UpdateStatus>("GET", "/api/update/status"),
+
+  aiProviders: () => request<AIProviderPreset[]>("GET", "/api/ai/providers"),
+  aiSettings: () => request<AISettings>("GET", "/api/ai/settings"),
+  aiSave: (d: AISettingsDraft) => request<AISettings>("PUT", "/api/ai/settings", d),
+  aiReset: () => request<AISettings>("DELETE", "/api/ai/settings"),
+  aiTest: (d: AISettingsDraft) => request<{ ok: boolean; model: string }>("POST", "/api/ai/test", d),
+  aiModels: (d: AISettingsDraft) => request<string[]>("POST", "/api/ai/models", d),
+  ollamaStatus: () => request<OllamaStatus>("GET", "/api/ai/ollama"),
+  ollamaSetup: (model?: string) =>
+    request<OllamaStatus["job"]>("POST", `/api/ai/ollama/setup${model ? `?model=${encodeURIComponent(model)}` : ""}`),
+  aiParse: (text: string, day: string) => request<{ items: DraftItem[] }>("POST", "/api/ai/parse", { text, day }),
+  aiBreakdown: (taskId: number) =>
+    request<{ steps: { title: string; estimate_min: number | null }[] }>("POST", `/api/ai/breakdown/${taskId}`),
+  aiReview: (day: string, text: string) => request<ReviewProposal>("POST", "/api/ai/review", { day, text }),
+  aiReviewApply: (day: string, p: ReviewProposal) => request<Day>("POST", "/api/ai/review/apply", { day, ...p }),
 
   voiceStatus: () => request<VoiceStatus>("GET", "/api/voice/status"),
   transcribe: (blob: Blob) => {

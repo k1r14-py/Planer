@@ -14,6 +14,9 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from . import speech, stats, updater
+from .ai import client as ai_client
+from .ai import features as ai_features
+from .ai import ollama as ai_ollama
 from .db import PROJECT_COLORS, init_db, tx
 from .dictation import parse_dictation, parse_line
 from .version import current_version
@@ -237,6 +240,21 @@ def insert_task(
     return cur.lastrowid
 
 
+def carry_task(conn, task_id: int, from_day: str, to_day: str, parent_id: int | None = None) -> None:
+    """Копирует задачу с открытыми подзадачами на другой день; оригинал помечается «перенесено»."""
+    src = task_row(conn, task_id)
+    tags = [r["tag"] for r in conn.execute("SELECT tag FROM task_tags WHERE task_id = ?", (task_id,))]
+    new_id = insert_task(
+        conn, to_day, src["title"], parent_id, src["estimate_min"], src["notes"],
+        moved_from=from_day, project_id=src["project_id"], deadline=src["deadline"], tags=tags,
+    )
+    for child in conn.execute(
+        "SELECT id FROM tasks WHERE parent_id = ? AND status = 'todo' ORDER BY position, id", (task_id,)
+    ).fetchall():
+        carry_task(conn, child["id"], from_day, to_day, new_id)
+    set_status(conn, task_id, "moved")
+
+
 def subtree_ids(conn, task_id: int) -> list[int]:
     ids, queue = [], [task_id]
     while queue:
@@ -407,27 +425,13 @@ def carry_over(day: str, body: CarryIn):
     if body.to == day:
         raise HTTPException(400, "Нельзя перенести на тот же день")
     with tx() as conn:
-        def copy(task_id: int, parent_id: int | None) -> None:
-            src = task_row(conn, task_id)
-            tags = [r["tag"] for r in conn.execute("SELECT tag FROM task_tags WHERE task_id = ?", (task_id,))]
-            new_id = insert_task(
-                conn, body.to, src["title"], parent_id, src["estimate_min"], src["notes"],
-                moved_from=day, project_id=src["project_id"], deadline=src["deadline"], tags=tags,
-            )
-            for child in conn.execute(
-                "SELECT id FROM tasks WHERE parent_id = ? AND status = 'todo' ORDER BY position, id",
-                (task_id,),
-            ).fetchall():
-                copy(child["id"], new_id)
-            set_status(conn, task_id, "moved")
-
         open_top = conn.execute(
             "SELECT id FROM tasks WHERE day = ? AND parent_id IS NULL AND status = 'todo' "
             "ORDER BY position, id",
             (day,),
         ).fetchall()
         for row in open_top:
-            copy(row["id"], None)
+            carry_task(conn, row["id"], day, body.to)
         return {"moved": len(open_top), "day": load_day(conn, day)}
 
 
@@ -704,6 +708,173 @@ def timer_stop(task_id: int):
         row = task_row(conn, task_id)
         stop_timer(conn, row)
         return load_day(conn, row["day"])
+
+
+# ---------- ИИ ----------
+
+
+class AISettingsIn(BaseModel):
+    provider: str | None = None
+    base_url: str | None = None
+    model: str | None = None
+    api_key: str | None = None  # пустая строка — оставить сохранённый
+
+
+class AIParseIn(BaseModel):
+    text: str = Field(min_length=1, max_length=8000)
+    day: str
+
+
+class AIReviewIn(BaseModel):
+    day: str
+    text: str = Field(min_length=1, max_length=8000)
+
+
+class NewTaskIn(BaseModel):
+    title: str = Field(min_length=1)
+    done: bool = True
+
+
+class AIReviewApply(BaseModel):
+    day: str
+    done: list[int] = []
+    skipped: list[int] = []
+    carry: list[int] = []
+    new_tasks: list[NewTaskIn] = []
+    note: str = ""
+
+
+def _ai_call(fn, *args):
+    try:
+        return fn(*args)
+    except ai_client.AIError as e:
+        raise HTTPException(502, str(e))
+
+
+def _draft_cfg(body: AISettingsIn) -> dict:
+    """Несохранённые настройки из формы поверх сохранённых (ключ — из сохранённых, если поле пустое)."""
+    cfg = ai_client.load_settings()
+    patch = {k: v for k, v in body.model_dump().items() if v not in (None, "")}
+    if patch.get("provider") and patch["provider"] != cfg["provider"]:
+        # другой сервис — адрес, модель и ключ прежнего не подходят
+        cfg.update(base_url="", model="", api_key="")
+    cfg.update(patch)
+    preset = ai_client.PROVIDERS.get(cfg["provider"], {})
+    cfg["base_url"] = cfg["base_url"] or preset.get("base_url", "")
+    cfg["model"] = cfg["model"] or preset.get("model", "")
+    return cfg
+
+
+@app.get("/api/ai/providers")
+def ai_providers():
+    return [{"id": k, **v} for k, v in ai_client.PROVIDERS.items()]
+
+
+@app.get("/api/ai/settings")
+def ai_get_settings():
+    return ai_client.public_settings(ai_client.load_settings())
+
+
+@app.put("/api/ai/settings")
+def ai_put_settings(body: AISettingsIn):
+    cfg = _draft_cfg(body)
+    return ai_client.public_settings(ai_client.save_settings(cfg))
+
+
+@app.delete("/api/ai/settings")
+def ai_reset_settings():
+    return ai_client.public_settings(ai_client.save_settings(dict(ai_client.DEFAULTS)))
+
+
+@app.post("/api/ai/test")
+def ai_test(body: AISettingsIn):
+    return _ai_call(ai_client.test_connection, _draft_cfg(body))
+
+
+@app.post("/api/ai/models")
+def ai_models(body: AISettingsIn):
+    return _ai_call(ai_client.list_models, _draft_cfg(body))
+
+
+@app.get("/api/ai/ollama")
+def ai_ollama_status():
+    return ai_ollama.status()
+
+
+@app.post("/api/ai/ollama/setup")
+def ai_ollama_setup(model: str | None = None):
+    try:
+        return ai_ollama.start_setup(model)
+    except RuntimeError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/api/ai/parse")
+def ai_parse(body: AIParseIn):
+    base = date.fromisoformat(check_day(body.day))
+    with tx() as conn:
+        projects = [r["name"] for r in conn.execute("SELECT name FROM projects WHERE archived = 0")]
+        tags = [r["tag"] for r in conn.execute("SELECT DISTINCT tag FROM task_tags")]
+    return {"items": _ai_call(ai_features.parse, body.text, base, projects, tags)}
+
+
+@app.post("/api/ai/breakdown/{task_id}")
+def ai_breakdown(task_id: int):
+    with tx() as conn:
+        row = task_row(conn, task_id)
+        existing = [r["title"] for r in conn.execute("SELECT title FROM tasks WHERE parent_id = ?", (task_id,))]
+        project = None
+        if row["project_id"]:
+            p = conn.execute("SELECT name FROM projects WHERE id = ?", (row["project_id"],)).fetchone()
+            project = p["name"] if p else None
+    return {"steps": _ai_call(ai_features.breakdown, row["title"], row["notes"], existing, project)}
+
+
+@app.post("/api/ai/review")
+def ai_review(body: AIReviewIn):
+    check_day(body.day)
+    with tx() as conn:
+        tasks = [task_dict(r) for r in conn.execute(
+            "SELECT * FROM tasks WHERE day = ? ORDER BY position, id", (body.day,)
+        )]
+    return _ai_call(ai_features.review, body.text, tasks)
+
+
+@app.post("/api/ai/review/apply")
+def ai_review_apply(body: AIReviewApply):
+    """Применяет предложенные (и одобренные пользователем) итоги дня одним действием."""
+    day = check_day(body.day)
+    with tx() as conn:
+        def own(tid: int):
+            row = task_row(conn, tid)
+            if row["day"] != day:
+                raise HTTPException(400, "Задача из другого дня")
+            return row
+
+        for tid in body.done:
+            own(tid)
+            set_status(conn, tid, "done")
+            cascade_status(conn, tid, "done")
+        for tid in body.skipped:
+            if own(tid)["status"] == "todo":
+                set_status(conn, tid, "skipped")
+                cascade_status(conn, tid, "skipped")
+        to = (date.fromisoformat(day) + timedelta(days=1)).isoformat()
+        for tid in body.carry:
+            row = own(tid)
+            if row["status"] == "todo" and row["parent_id"] is None:
+                carry_task(conn, tid, day, to)
+        for t in body.new_tasks:
+            tid = insert_task(conn, day, t.title)
+            conn.execute("UPDATE tasks SET planned = 0 WHERE id = ?", (tid,))  # сделано вне плана
+            if t.done:
+                set_status(conn, tid, "done")
+        if body.note.strip():
+            ensure_day(conn, day)
+            old = day_info(conn, day)["note"].strip()
+            note = f"{old}\n\n{body.note.strip()}" if old else body.note.strip()
+            conn.execute("UPDATE days SET note = ? WHERE day = ?", (note, day))
+        return load_day(conn, day)
 
 
 # ---------- служебное ----------

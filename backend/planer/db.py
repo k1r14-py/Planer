@@ -81,6 +81,13 @@ MIGRATIONS = [
         WHEN 4 THEN '#0091ff' WHEN 5 THEN '#d6409f' WHEN 6 THEN '#12a594' ELSE '#8e8c99' END
     WHERE color = '#6d5efc'
     """,
+    # 3: настройки (ИИ-провайдер и т. п.) — ключ/значение
+    """
+    CREATE TABLE IF NOT EXISTS settings (
+        key   TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
+    """,
 ]
 
 # те же цвета, что PROJECT_COLORS во фронтенде

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import type { Day, Task } from "../api";
+import type { Day, Task, VoiceStatus } from "../api";
 import { api } from "../api";
+import { useAI } from "../ai";
 import { childrenMap, formatClock, formatMinutes, liveSeconds } from "../utils";
 import { Icon } from "./Icon";
+import { ReviewDialog } from "./ReviewDialog";
 import { SummaryCard } from "./SummaryCard";
 
 const STATUS_LABEL: Record<Task["status"], string> = {
@@ -12,7 +14,19 @@ const STATUS_LABEL: Record<Task["status"], string> = {
   moved: "перенесено",
 };
 
-export function PlanFactView({ data, now, onChange }: { data: Day; now: number; onChange: (d: Day) => void }) {
+export function PlanFactView({
+  data,
+  now,
+  voice,
+  onChange,
+}: {
+  data: Day;
+  now: number;
+  voice: VoiceStatus | null;
+  onChange: (d: Day) => void;
+}) {
+  const ai = useAI();
+  const [review, setReview] = useState(false);
   const kids = childrenMap(data.tasks);
   const top = kids.get(null) ?? [];
   const planned = top.filter((t) => t.planned);
@@ -126,9 +140,18 @@ export function PlanFactView({ data, now, onChange }: { data: Day; now: number; 
       </div>
 
       <section className="card">
-        <h3>
-          <Icon name="edit" /> Итоги дня
-        </h3>
+        <div className="card-head">
+          <h3>
+            <Icon name="edit" /> Итоги дня
+          </h3>
+          <button
+            className="btn sm"
+            onClick={() => (ai.ready ? setReview(true) : ai.openSettings())}
+            title={ai.ready ? "Расскажите, как прошёл день — ИИ отметит задачи и заполнит итоги" : "Нужен ИИ-помощник"}
+          >
+            <Icon name="sparkles" /> Итоги голосом
+          </button>
+        </div>
         <textarea
           className="textarea"
           rows={3}
@@ -138,6 +161,8 @@ export function PlanFactView({ data, now, onChange }: { data: Day; now: number; 
           onBlur={() => note !== data.note && api.setNote(data.day, note).then(onChange)}
         />
       </section>
+
+      {review && <ReviewDialog data={data} voice={voice} onClose={() => setReview(false)} onApplied={onChange} />}
     </div>
   );
 }

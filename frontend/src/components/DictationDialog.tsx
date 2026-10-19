@@ -1,21 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Day, VoiceStatus } from "../api";
 import { api } from "../api";
-import { formatClock } from "../utils";
+import { useAI } from "../ai";
 import { DraftList, flatten, unflatten, type DraftRow } from "./DraftList";
 import { Icon } from "./Icon";
+import { Recorder, type RecPhase } from "./Recorder";
 
-type Phase = "idle" | "recording" | "transcribing";
+type Mode = "ai" | "rules";
 
-const MIC_KEY = "planer-mic";
-const SILENT_LEVEL = 0.02; // ниже — считаем, что звука нет
+const MODE_KEY = "planer-parse-mode";
 
-function pickMime(): string | undefined {
-  const types = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
-  return types.find((t) => typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t));
-}
-
-const HELP: [string, string][] = [
+const HELP_RULES: [string, string][] = [
   ["Новая задача", "точка или «потом»: «Купить хлеб. Потом позвонить маме»"],
   ["Подзадача", "«подзадача собрать данные» — вложится в предыдущую задачу"],
   ["Оценка", "«на 30 минут», «на час», «полтора часа»"],
@@ -24,36 +19,18 @@ const HELP: [string, string][] = [
   ["Тег", "«тег срочно»"],
 ];
 
-function loadMic(): string {
-  try {
-    return localStorage.getItem(MIC_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
+const HELP_AI: [string, string][] = [
+  ["Говорите свободно", "«надо бы к пятнице доделать отчёт, там сначала собрать данные, и маме вечером позвонить»"],
+  ["ИИ сам поймёт", "где отдельные задачи, а где шаги одной задачи; сроки, длительность и проекты"],
+  ["Проверьте список", "перед добавлением можно поправить любую задачу"],
+];
 
-function saveMic(id: string) {
+function loadMode(): Mode {
   try {
-    localStorage.setItem(MIC_KEY, id);
+    return localStorage.getItem(MODE_KEY) === "rules" ? "rules" : "ai";
   } catch {
-    /* ignore */
+    return "ai";
   }
-}
-
-/** Список микрофонов. Названия браузер отдаёт только после разрешения доступа. */
-function useMicrophones() {
-  const [mics, setMics] = useState<MediaDeviceInfo[]>([]);
-  const refresh = useCallback(async () => {
-    if (!navigator.mediaDevices?.enumerateDevices) return;
-    const all = await navigator.mediaDevices.enumerateDevices();
-    setMics(all.filter((d) => d.kind === "audioinput" && d.deviceId !== "communications"));
-  }, []);
-  useEffect(() => {
-    refresh();
-    navigator.mediaDevices?.addEventListener?.("devicechange", refresh);
-    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", refresh);
-  }, [refresh]);
-  return { mics, refresh };
 }
 
 export function DictationDialog({
@@ -69,168 +46,86 @@ export function DictationDialog({
   onClose: () => void;
   onAdded: (d: Day) => void;
 }) {
-  const [phase, setPhase] = useState<Phase>("idle");
+  const ai = useAI();
+  const [phase, setPhase] = useState<RecPhase>("idle");
   const [text, setText] = useState("");
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [edited, setEdited] = useState(false); // список правили руками — правка текста их сбросит
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  const [level, setLevel] = useState(0);
-  const [silent, setSilent] = useState(false);
-  const [micId, setMicId] = useState(loadMic);
-  const { mics, refresh: refreshMics } = useMicrophones();
+  const [preferred, setPreferred] = useState<Mode>(loadMode);
+  const [parsing, setParsing] = useState(false);
+  const [parsedText, setParsedText] = useState(""); // какой текст разобран ИИ последним
+  const [parsedBy, setParsedBy] = useState<Mode | null>(null);
+  const request = useRef(0);
 
-  const recorder = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
-  const started = useRef(0);
-  const audioCtx = useRef<AudioContext | null>(null);
-  const raf = useRef(0);
-  const maxLevel = useRef(0);
+  const mode: Mode = ai.ready ? preferred : "rules";
 
-  const canRecord = !!voice?.available;
-
-  // перепарсинг текста при ручном редактировании
-  useEffect(() => {
-    if (!text.trim()) {
-      setRows([]);
-      return;
+  const setMode = (m: Mode) => {
+    setPreferred(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* ignore */
     }
-    const h = setTimeout(() => {
-      api
-        .parse(text, day)
-        .then((r) => {
-          setRows(flatten(r.items));
-          setEdited(false);
-        })
-        .catch((e) => setError(e.message));
-    }, 250);
-    return () => clearTimeout(h);
-  }, [text, day]);
-
-  useEffect(() => {
-    if (phase !== "recording") return;
-    const h = setInterval(() => {
-      const sec = (Date.now() - started.current) / 1000;
-      setElapsed(sec);
-      setSilent(sec > 2.5 && maxLevel.current < SILENT_LEVEL);
-    }, 250);
-    return () => clearInterval(h);
-  }, [phase]);
-
-  const stopMeter = () => {
-    cancelAnimationFrame(raf.current);
-    audioCtx.current?.close().catch(() => {});
-    audioCtx.current = null;
-    setLevel(0);
   };
 
-  // автозапуск записи — как только сервер подтвердил, что голос доступен
-  // (диалог могли открыть клавишей V раньше, чем пришёл статус)
-  const autoStarted = useRef(false);
-  useEffect(() => {
-    if (startRecording && canRecord && !autoStarted.current) {
-      autoStarted.current = true;
-      start();
+  async function parseWith(m: Mode, value: string) {
+    const id = ++request.current;
+    if (!value.trim()) {
+      setRows([]);
+      setParsedBy(null);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRecord]);
-
-  useEffect(
-    () => () => {
-      stopMeter();
-      recorder.current?.stream.getTracks().forEach((t) => t.stop());
-    },
-    [],
-  );
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && phase !== "recording" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [phase, onClose]);
-
-  async function openStream(): Promise<MediaStream> {
-    if (micId) {
+    setError(null);
+    if (m === "ai") {
+      setParsing(true);
+      setNotice(null);
       try {
-        return await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micId } } });
-      } catch {
-        // выбранный микрофон отключили — берём системный по умолчанию
-        setMicId("");
-        saveMic("");
+        const r = await api.aiParse(value, day);
+        if (id !== request.current) return;
+        setRows(flatten(r.items));
+        setParsedBy("ai");
+        setParsedText(value);
+        setEdited(false);
+        return;
+      } catch (e) {
+        if (id !== request.current) return;
+        setNotice(`ИИ не ответил: ${(e as Error).message} Разобрал по правилам.`);
+      } finally {
+        if (id === request.current) setParsing(false);
       }
     }
-    return navigator.mediaDevices.getUserMedia({ audio: true });
-  }
-
-  function startMeter(stream: MediaStream) {
-    const ctx = new AudioContext();
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 1024;
-    ctx.createMediaStreamSource(stream).connect(analyser);
-    const buf = new Float32Array(analyser.fftSize);
-    audioCtx.current = ctx;
-    maxLevel.current = 0;
-    const tick = () => {
-      analyser.getFloatTimeDomainData(buf);
-      let peak = 0;
-      for (const v of buf) peak = Math.max(peak, Math.abs(v));
-      maxLevel.current = Math.max(maxLevel.current, peak);
-      setLevel(peak);
-      raf.current = requestAnimationFrame(tick);
-    };
-    tick();
-  }
-
-  async function start() {
-    setError(null);
-    setNotice(null);
-    setSilent(false);
     try {
-      const stream = await openStream();
-      refreshMics(); // после разрешения доступа появляются названия устройств
-      startMeter(stream);
-      const mimeType = pickMime();
-      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      chunks.current = [];
-      rec.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
-      rec.onstop = async () => {
-        stopMeter();
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunks.current, { type: rec.mimeType });
-        setPhase("transcribing");
-        try {
-          const r = await api.transcribe(blob);
-          if (r.text) {
-            setText((prev) => (prev.trim() ? `${prev.trim()}\n${r.text}` : r.text));
-          } else if (r.peak < 0.01) {
-            setNotice(
-              `В записи тишина (${r.duration.toFixed(1)} с). Выберите другой микрофон в списке выше или проверьте ` +
-                "Системные настройки → Конфиденциальность и безопасность → Микрофон: доступ для браузера должен быть включён.",
-            );
-          } else {
-            setNotice(`Речь не распознана (${r.duration.toFixed(1)} с). Попробуйте говорить чуть громче или ближе к микрофону.`);
-          }
-        } catch (e) {
-          setError((e as Error).message);
-        } finally {
-          setPhase("idle");
-        }
-      };
-      recorder.current = rec;
-      started.current = Date.now();
-      setElapsed(0);
-      rec.start();
-      setPhase("recording");
+      const r = await api.parse(value, day);
+      if (id !== request.current) return;
+      setRows(flatten(r.items));
+      setParsedBy("rules");
+      setEdited(false);
     } catch (e) {
-      stopMeter();
-      setError(`Нет доступа к микрофону: ${(e as Error).message}`);
+      setError((e as Error).message);
     }
   }
 
-  function stop() {
-    recorder.current?.stop();
-  }
+  // ручная правка текста: правила — на лету; ИИ — по кнопке (не дёргаем модель на каждую букву)
+  useEffect(() => {
+    if (mode !== "rules") return;
+    const h = setTimeout(() => parseWith("rules", text), 250);
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, mode]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && phase !== "recording" && !parsing && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [phase, parsing, onClose]);
+
+  const onRecorded = (t: string) => {
+    const next = text.trim() ? `${text.trim()}\n${t}` : t;
+    setText(next);
+    if (mode === "ai") parseWith("ai", next);
+  };
 
   async function add() {
     try {
@@ -242,10 +137,11 @@ export function DictationDialog({
   }
 
   const total = unflatten(rows).reduce((n, i) => n + 1 + i.children.length, 0);
-  const hasLabels = mics.some((m) => m.label);
+  const aiStale = mode === "ai" && text.trim() && text !== parsedText;
+  const busy = phase !== "idle" || parsing;
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && phase === "idle" && onClose()}>
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="dialog" role="dialog" aria-label="Надиктовать задачи">
         <header className="dialog-head">
           <h2>Надиктовать задачи</h2>
@@ -254,96 +150,51 @@ export function DictationDialog({
           </button>
         </header>
 
-        {canRecord && mics.length > 0 && (
-          <label className="mic-select">
-            <Icon name="mic" />
-            <select
-              value={micId}
-              disabled={phase !== "idle"}
-              onChange={(e) => {
-                setMicId(e.target.value);
-                saveMic(e.target.value);
-              }}
-            >
-              <option value="">Системный микрофон по умолчанию</option>
-              {mics
-                .filter((m) => m.deviceId && m.deviceId !== "default")
-                .map((m, i) => (
-                  <option key={m.deviceId} value={m.deviceId}>
-                    {m.label || `Микрофон ${i + 1}`}
-                  </option>
-                ))}
-            </select>
-            {!hasLabels && <span className="muted small">названия появятся после первой записи</span>}
-          </label>
+        {ai.ready ? (
+          <div className="mode-row">
+            <span className="muted small">Разбор:</span>
+            <div className="segmented small" role="tablist">
+              <button className={mode === "ai" ? "active" : ""} onClick={() => setMode("ai")} disabled={busy}>
+                <Icon name="sparkles" /> ИИ — свободная речь
+              </button>
+              <button className={mode === "rules" ? "active" : ""} onClick={() => setMode("rules")} disabled={busy}>
+                По правилам
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button className="ai-hint" onClick={ai.openSettings}>
+            <Icon name="sparkles" /> Подключите ИИ, чтобы говорить свободно, без правил — локально или через DeepSeek,
+            Qwen, ChatGPT
+          </button>
         )}
 
-        <div className="recorder">
-          {phase === "recording" ? (
-            <button className="rec-btn recording" onClick={stop}>
-              <span className="pulse" />
-              <Icon name="square" size={18} />
-            </button>
-          ) : (
-            <button
-              className="rec-btn"
-              onClick={start}
-              disabled={!canRecord || phase === "transcribing"}
-              title={canRecord ? "Начать запись" : "Whisper не установлен на сервере"}
-            >
-              {phase === "transcribing" ? <Icon name="loader" size={20} /> : <Icon name="mic" size={20} />}
-            </button>
-          )}
-          <div className="rec-info">
-            {phase === "recording" && (
-              <>
-                <strong>Идёт запись · {formatClock(elapsed)}</strong>
-                <div className="level" aria-label="Уровень звука">
-                  <div className="level-fill" style={{ width: `${Math.min(100, Math.sqrt(level) * 100)}%` }} />
-                </div>
-                {silent ? (
-                  <span className="warn-text">
-                    Микрофон не передаёт звук — выберите другой в списке выше или проверьте доступ браузера к
-                    микрофону в настройках macOS
-                  </span>
-                ) : (
-                  <span className="muted">Нажмите ■, чтобы закончить</span>
-                )}
-              </>
-            )}
-            {phase === "transcribing" && (
-              <>
-                <strong>Распознаю…</strong>
-                <span className="muted">Локально, модель {voice?.model}</span>
-              </>
-            )}
-            {phase === "idle" && canRecord && (
-              <>
-                <strong>Говорите задачи по порядку</strong>
-                <span className="muted">
-                  «Написать отчёт на час. Подзадача собрать данные. Потом позвонить маме»
-                </span>
-              </>
-            )}
-            {phase === "idle" && !canRecord && (
-              <>
-                <strong>Голос недоступен</strong>
-                <span className="muted">
-                  Установите <code>pip install -r backend/requirements-voice.txt</code> и перезапустите сервер.
-                  Пока можно вписать список текстом ниже.
-                </span>
-              </>
-            )}
-          </div>
-        </div>
+        <Recorder
+          voice={voice}
+          autoStart={startRecording}
+          onText={onRecorded}
+          onPhase={setPhase}
+          idleTitle={mode === "ai" ? "Расскажите, что нужно сделать" : "Говорите задачи по порядку"}
+          idleHint={
+            mode === "ai"
+              ? "Своими словами — ИИ разложит на задачи, сроки и подзадачи"
+              : "«Написать отчёт на час. Подзадача собрать данные. Потом позвонить маме»"
+          }
+        />
 
         {notice && <div className="notice">{notice}</div>}
 
-        {rows.length === 0 && phase !== "transcribing" && (
+        {parsing && (
+          <div className="parsing">
+            <Icon name="loader" /> ИИ разбирает текст…
+          </div>
+        )}
+
+        {rows.length === 0 && phase !== "transcribing" && !parsing && (
           <div className="dictation-help">
-            <div className="field-label">Как говорить</div>
+            <div className="field-label">{mode === "ai" ? "Как это работает" : "Как говорить"}</div>
             <dl>
-              {HELP.map(([what, how]) => (
+              {(mode === "ai" ? HELP_AI : HELP_RULES).map(([what, how]) => (
                 <div key={what}>
                   <dt>{what}</dt>
                   <dd>{how}</dd>
@@ -354,8 +205,15 @@ export function DictationDialog({
         )}
 
         {rows.length > 0 && (
-          <div className="preview">
-            <div className="field-label">Будет добавлено · {total}</div>
+          <div className={`preview ${parsing ? "refetching" : ""}`}>
+            <div className="field-label">
+              Будет добавлено · {total}
+              {parsedBy === "ai" && (
+                <span className="badge accent">
+                  <Icon name="sparkles" size={11} /> разобрано ИИ
+                </span>
+              )}
+            </div>
             <div className="preview-hint muted small">
               Нажмите на название, чтобы исправить · <Icon name="indent" size={12} /> — сделать подзадачей
               предыдущей · × — убрать
@@ -372,23 +230,38 @@ export function DictationDialog({
 
         {error && <div className="error">{error}</div>}
 
-        <details className="dictation-text" open={!startRecording || !canRecord || undefined}>
-          <summary className="field-label">Распознанный текст{edited ? " (правка текста сбросит изменения в списке)" : ""}</summary>
+        <details className="dictation-text" open={!startRecording || !voice?.available || undefined}>
+          <summary className="field-label">
+            {voice?.available ? "Распознанный текст" : "Текст"}
+            {edited ? " (повторный разбор сбросит правки в списке)" : ""}
+          </summary>
           <textarea
             id="dictation-text"
             className="textarea"
             rows={3}
             value={text}
-            placeholder={"Каждая задача с новой строки или через точку.\nПодзадача … — добавит подзадачу к предыдущей."}
+            placeholder={
+              mode === "ai"
+                ? "Напишите своими словами, что нужно сделать…"
+                : "Каждая задача с новой строки или через точку.\nПодзадача … — добавит подзадачу к предыдущей."
+            }
             onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (mode === "ai" && e.key === "Enter" && (e.metaKey || e.ctrlKey)) parseWith("ai", text);
+            }}
           />
+          {aiStale && (
+            <button className="btn sm" onClick={() => parseWith("ai", text)} disabled={parsing}>
+              <Icon name="sparkles" /> Разобрать с ИИ <span className="muted">⌘/Ctrl + Enter</span>
+            </button>
+          )}
         </details>
 
         <footer className="dialog-foot">
           <button className="btn ghost" onClick={onClose} disabled={phase === "recording"}>
             Отмена
           </button>
-          <button className="btn primary" onClick={add} disabled={!total || phase !== "idle"}>
+          <button className="btn primary" onClick={add} disabled={!total || busy}>
             Добавить {total ? total : ""}
           </button>
         </footer>

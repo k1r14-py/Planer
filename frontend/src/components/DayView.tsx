@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useAI } from "../ai";
 import type { Day, Task } from "../api";
 import { api } from "../api";
 import { ProjectChip, useProjects } from "../projects";
 import { childrenMap, deadlineInfo, shortDate } from "../utils";
 import { Icon } from "./Icon";
+import { BreakdownDialog } from "./BreakdownDialog";
 import { SummaryCard } from "./SummaryCard";
 import { TaskList, type TaskCtx } from "./TaskItem";
 
@@ -23,11 +25,14 @@ export function DayView({
   onOpenDay: (day: string) => void;
 }) {
   const [value, setValue] = useState("");
+  const [breakdown, setBreakdown] = useState<Task | null>(null);
+  const ai = useAI();
   const ctx: TaskCtx = {
     children: childrenMap(data.tasks),
     now,
     day: data.day,
     run,
+    onBreakdown: (t) => (ai.ready ? setBreakdown(t) : ai.openSettings()),
   };
   const locked = !!data.plan_locked_at;
   const open = data.summary.open;
@@ -103,6 +108,8 @@ export function DayView({
           <span className="muted">Впишите задачу выше или нажмите на микрофон и надиктуйте план.</span>
         </div>
       )}
+
+      {breakdown && <BreakdownDialog task={breakdown} onClose={() => setBreakdown(null)} onDone={run} />}
 
       {open > 0 && (
         <div className="day-foot">
