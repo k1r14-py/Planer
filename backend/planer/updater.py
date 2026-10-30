@@ -56,14 +56,49 @@ class UpdateError(Exception):
 # ---------- сеть ----------
 
 
+_CTX: ssl.SSLContext | None = None
+
+
+def _mac_system_certs() -> list[str]:
+    """Сертификаты из связок ключей macOS: туда IT ставит корневой сертификат компании."""
+    keychains = [
+        "/Library/Keychains/System.keychain",
+        "/System/Library/Keychains/SystemRootCertificates.keychain",
+        os.path.expanduser("~/Library/Keychains/login.keychain-db"),
+    ]
+    try:
+        out = subprocess.run(
+            ["security", "find-certificate", "-a", "-p", *[k for k in keychains if os.path.exists(k)]],
+            capture_output=True, text=True, timeout=10,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    end = "-----END CERTIFICATE-----"
+    return [c.strip() + "\n" + end for c in out.split(end) if "BEGIN CERTIFICATE" in c]
+
+
 def _ssl_context() -> ssl.SSLContext:
-    # Python с python.org на macOS не видит системные сертификаты — берём certifi
+    """Публичные сертификаты (certifi) + системное хранилище: корпоративные серверы ИИ и прокси
+    обычно подписаны собственным центром сертификации компании, который IT ставит в систему."""
+    global _CTX
+    if _CTX is not None:
+        return _CTX
     try:
         import certifi
 
-        return ssl.create_default_context(cafile=certifi.where())
+        ctx = ssl.create_default_context(cafile=certifi.where())
     except ImportError:
-        return ssl.create_default_context()
+        ctx = ssl.create_default_context()
+    if sys.platform == "win32":
+        ctx.load_default_certs()  # хранилище сертификатов Windows
+    elif sys.platform == "darwin":
+        for pem in _mac_system_certs():
+            try:
+                ctx.load_verify_locations(cadata=pem)
+            except ssl.SSLError:
+                pass  # битый или неподдерживаемый сертификат — пропускаем, остальные нужны
+    _CTX = ctx
+    return ctx
 
 
 def _open(url: str, timeout: float = 20):

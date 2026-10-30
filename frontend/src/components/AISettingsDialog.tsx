@@ -154,9 +154,9 @@ export function AISettingsDialog({ onClose }: { onClose: () => void }) {
                 onSignedIn={loadModels}
               />
             )}
-            {preset.needs_key && (
+            {(preset.needs_key || provider === "custom") && (
               <label className="form-field">
-                <span>API-ключ</span>
+                <span>{preset.needs_key ? "API-ключ" : "API-ключ (если сервер его требует)"}</span>
                 <input
                   type="password"
                   autoComplete="off"

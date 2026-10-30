@@ -209,3 +209,35 @@ def test_ollama_setup_pulls_model_when_running(client, monkeypatch):
     finally:
         srv.shutdown()
         ollama._job.update(state="idle")
+
+
+def test_retry_without_response_format(monkeypatch):
+    """Корпоративный шлюз не знает response_format — повторяем запрос без него."""
+    calls = []
+
+    def fake_request(cfg, path, body=None, timeout=120):
+        calls.append(dict(body))
+        if "response_format" in body:
+            raise ai_client.AIError("Сервис ответил ошибкой 400. Unknown parameter: response_format")
+        return {"choices": [{"message": {"content": '{"ok": true}'}}]}
+
+    monkeypatch.setattr(ai_client, "_request", fake_request)
+    cfg = {"provider": "custom", "base_url": "http://x/v1", "model": "m", "api_key": "k"}
+    assert ai_client.chat_json("sys", "user", cfg) == {"ok": True}
+    assert "response_format" in calls[0] and "response_format" not in calls[1]
+
+    def fail_auth(cfg, path, body=None, timeout=120):
+        raise ai_client.AIError("Ключ не подошёл (401). Проверьте API-ключ.")
+
+    monkeypatch.setattr(ai_client, "_request", fail_auth)
+    with pytest.raises(ai_client.AIError, match="401"):
+        ai_client.chat_json("sys", "user", cfg)
+
+
+def test_ssl_context_loads_and_is_cached(monkeypatch):
+    from planer import updater
+
+    monkeypatch.setattr(updater, "_CTX", None)
+    ctx = updater._ssl_context()
+    assert ctx.cert_store_stats()["x509_ca"] > 50  # публичные корневые сертификаты на месте
+    assert updater._ssl_context() is ctx

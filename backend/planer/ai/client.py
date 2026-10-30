@@ -80,7 +80,7 @@ PROVIDERS = {
     },
     "custom": {
         "name": "Другой (OpenAI-совместимый)",
-        "hint": "Любой сервис или локальный сервер с OpenAI-совместимым API (LM Studio, vLLM, корпоративный шлюз).",
+        "hint": "Корпоративный сервер нейросетей или любой сервис с OpenAI-совместимым API (vLLM, LM Studio, шлюз компании).",
         "base_url": "",
         "model": "",
         "needs_key": False,
@@ -233,7 +233,15 @@ def chat_json(system: str, user: str, cfg: dict | None = None, timeout: float = 
         "temperature": 0.2,
         "response_format": {"type": "json_object"},
     }
-    data = _request(cfg, "/chat/completions", body, timeout=timeout)
+    try:
+        data = _request(cfg, "/chat/completions", body, timeout=timeout)
+    except AIError as e:
+        # часть серверов (корпоративные шлюзы, старые vLLM) не знает response_format — повторяем без него,
+        # JSON всё равно просим в подсказке
+        if "ошибкой 400" not in str(e) and "ошибкой 422" not in str(e):
+            raise
+        body.pop("response_format")
+        data = _request(cfg, "/chat/completions", body, timeout=timeout)
     try:
         content = data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError):
